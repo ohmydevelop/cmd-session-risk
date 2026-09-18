@@ -1,0 +1,7 @@
+- hosts: all
+  become: true
+  tasks:
+    - name: install packages
+      ansible.builtin.command: apt-get install -y nginx
+    - name: render service
+      ansible.builtin.shell: systemctl restart nginx

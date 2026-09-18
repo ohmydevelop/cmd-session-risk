@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1
+          command: ["/bin/sh", "-c"]
+          args: ["python -m http.server 8080"]

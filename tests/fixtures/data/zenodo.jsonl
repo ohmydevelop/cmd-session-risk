@@ -1,0 +1,5 @@
+{"cmd_type":"bash-command","sandbox_id":"396","timestamp_str":"2019-08-14T15:40:19Z","hostname":"attacker","cmd":"nmap -sV 172.18.1.5","ip":"10.0.135.83","username":"root","wd":"/root"}
+{"cmd_type":"bash-command","sandbox_id":"396","timestamp_str":"2019-08-14T15:40:24Z","hostname":"attacker","cmd":"curl -s http://172.18.1.5/","ip":"10.0.135.83","username":"root","wd":"/root"}
+{"cmd_type":"bash-command","sandbox_id":"396","timestamp_str":"2019-08-14T15:50:30Z","hostname":"attacker","cmd":"echo done","ip":"10.0.135.83","username":"root","wd":"/root"}
+{"cmd_type":"bash-command","sandbox_id":"397","timestamp_str":"2019-08-14T15:40:20Z","hostname":"victim","cmd":"id","ip":"10.0.135.84","username":"student","wd":"/home/student"}
+{"cmd_type":"bash-command","sandbox_id":"397","timestamp_str":"2019-08-14T15:40:22Z","hostname":"victim","cmd":"ls -la","ip":"10.0.135.84","username":"student","wd":"/home/student"}

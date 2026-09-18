@@ -1,0 +1,13 @@
+name: ci
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install -e .
+      - run: python -m pytest
+      - name: package
+        run: |
+          tar czf dist/app.tar.gz src
+          sha256sum dist/app.tar.gz
