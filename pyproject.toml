@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cmd-session-risk"
+version = "0.1.0"
+description = "Unix command-session malicious-risk scoring with ATT&CK labels"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "Apache-2.0" }
+authors = [{ name = "cmd-session-risk contributors" }]
+dependencies = [
+  "httpx>=0.28,<1",
+  "numpy>=2.0,<3",
+  "orjson>=3.10,<4",
+  "pandas>=2.2,<3",
+  "pydantic>=2.10,<3",
+  "pyarrow>=18,<22",
+  "scikit-learn>=1.5,<2",
+  "typer>=0.15,<1",
+]
+
+[project.optional-dependencies]
+train = [
+  "accelerate>=1.2,<2",
+  "datasets>=3.2,<5",
+  "onnx>=1.17,<2",
+  "onnxruntime>=1.20,<2",
+  "scipy>=1.14,<2",
+  "torch>=2.5,<3",
+  "transformers>=4.48,<6",
+]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<8",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+cmdrisk = "cmdrisk.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cmdrisk"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
