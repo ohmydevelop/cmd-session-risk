@@ -19,7 +19,7 @@ def test_session_accepts_subtechnique_evidence() -> None:
         ],
         label=Label(
             malicious=1,
-            first_evidence_index=1,
+            first_evidence_index=0,
             technique_evidence={"T1105": [0], "T1059.004": [2]},
             tactics=tactics_for_techniques(["T1105", "T1059.004"]),
             techniques=["T1105", "T1059.004"],
@@ -27,7 +27,7 @@ def test_session_accepts_subtechnique_evidence() -> None:
         ),
     )
     assert record.commands[0].dt == 1.0
-    assert attack_stage(record.label.tactics) == "Execution"
+    assert attack_stage(record.label.tactics) == "Command and Control"
 
 
 def test_benign_cannot_have_evidence_index() -> None:
