@@ -92,7 +92,7 @@ class SessionRecord(StrictModel):
             if self.label.first_evidence_index >= len(self.commands):
                 raise ValueError("first_evidence_index is outside commands")
         for technique, indices in self.label.technique_evidence.items():
-            if not technique.startswith("T") or not technique[1:].isdigit():
+            if not technique.startswith("T") or not technique[1:].replace(".", "").isdigit():
                 raise ValueError(f"invalid ATT&CK technique id: {technique}")
             if any(index < 0 or index >= len(self.commands) for index in indices):
                 raise ValueError(f"technique evidence index out of range for {technique}")
