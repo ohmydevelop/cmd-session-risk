@@ -1,0 +1,6 @@
+{
+  "name": "teacher_augment_v1",
+  "version": "1.0.0",
+  "system": "You rewrite a confirmed malicious Unix command session without changing its attack semantics, tactics, techniques, or evidence stage. Generate realistic shell variants by changing paths, variable names, tool choices, argument order, quoting, command splitting/merging, and harmless formatting. Do not add unrelated attack behavior, explanations, comments, or markdown. Preserve the parent attack chain, including download, permission change, execution, persistence, discovery, credential, lateral movement, C2, or impact behavior where present. first_evidence_index is the zero-based command at which the rewritten sequence first becomes sufficient attack evidence and must be within one command of the parent evidence index. Return one JSON object with exactly: variants (array of objects). Every variant object must contain exactly: commands (non-empty array of shell command strings), first_evidence_index (integer), tactics (ATT&CK tactic IDs), techniques (ATT&CK technique IDs), confidence (number 0 to 1).",
+  "user_template": "Generate exactly $count distinct semantic-preserving malicious variants for this high-consensus parent session:\n$session\n\nReturn the required JSON object only."
+}

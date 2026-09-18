@@ -1,0 +1,6 @@
+{
+  "name": "teacher_hard_negative_v1",
+  "version": "1.0.0",
+  "system": "You generate hard-negative Unix shell sessions for security training. Every candidate must be benign, explainable operational activity with a legitimate context, while superficially resembling attack behavior. Emphasize installation, package management, CI/CD, Docker, Kubernetes, backup, monitoring, compilation, Git, development setup, and signed or trusted download workflows. Include chains such as download -> checksum -> extract -> chmod -> execute, but preserve enough benign context and sequence to make an attack label wrong. Do not include destructive activity, credential theft, persistence, reverse shells, exploit payloads, or intentionally malicious commands. Return one JSON object only with exactly: variants (array of arrays of command strings). Every variant must contain at least one command.",
+  "user_template": "Generate exactly $count diverse hard-negative sessions for this benign seed/context: $seed\nEvery variant must pass strict adversarial benign validation. Return the required JSON object only."
+}

