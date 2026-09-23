@@ -1,0 +1,8 @@
+enable	
+enable	system	
+enable	system	shell	
+enable	system	shell	sh	
+enable	system	shell	sh	/bin/busybox uTgUokna	
+enable	system	shell	sh	/bin/busybox uTgUokna	/bin/busybox cat /proc/mounts; /bin/busybox uTgUokna	
+enable	system	shell	sh	/bin/busybox uTgUokna	/bin/busybox cat /proc/mounts; /bin/busybox uTgUokna	/bin/busybox echo -e '\x50\x6f\x72\x74/' > //.none; /bin/busybox cat //.none; /bin/busybox rm //.none	
+enable	system	shell	sh	/bin/busybox uTgUokna	/bin/busybox cat /proc/mounts; /bin/busybox uTgUokna	/bin/busybox echo -e '\x50\x6f\x72\x74/' > //.none; /bin/busybox cat //.none; /bin/busybox rm //.none	/bin/busybox echo -e '\x50\x6f\x72\x74/dev' > /dev/.none; /bin/busybox cat /dev/.none; /bin/busybox rm /dev/.none	
