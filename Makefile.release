@@ -22,3 +22,7 @@ build/cmdrisk: tools/cmdrisk_single.c build/model_f32.o build/vocab.o
 smoke: build/cmdrisk
 	./build/cmdrisk ci_assets/smoke_text.txt 0.0001179935351014905 > build/smoke.out 2> build/smoke.err
 	test "$$(wc -l < build/smoke.out)" -eq 8
+	awk '$$4!=1{exit 1}' build/smoke.out
+	./build/cmdrisk ci_assets/regression_borderline.txt 0.0001179935351014905 > build/reg.out 2> build/reg.err
+	test "$$(wc -l < build/reg.out)" -eq 13
+	awk '$$4!=0{exit 1}' build/reg.out

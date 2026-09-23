@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "cmdrisk_calibration.h"
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
@@ -204,22 +205,21 @@ static int tok_cmd(const char* text, int* out, int cap){
         }
         if(isspace((unsigned char)c)||is_punct_ascii(c)){
             if(bn){ buf[bn]=0; int id=voc_id(buf);
-                if(id>=0&&n<cap)out[n++]=id; else { /* subword */
-                    int off=0; int fail=0;
-                    while(off<bn && n<cap){
-                        int best=-1, bl=0;
-                        for(int l=bn-off; l>0; --l){
-                            buf[bn]=0; char probe[MAXW];
-                            snprintf(probe,sizeof probe,"%s%s", off?"##":"", buf+off);
-                            // emit with ## prefix each attempt
-                            if(l==bn-off){ snprintf(probe,sizeof probe,"%s%.*s", off?"##":"", l, buf+off); } else { continue; }
-                            int id=voc_id(probe);
-                            if(id>=0){ best=id; bl=l; break; }
-                        }
-                        if(best<0){ fail=1; break; }
-                        out[n++]=best; off+=bl;
-                    }
-                    if(fail&&n<cap)out[n++]=voc_id("[UNK]");
+                if(id>=0&&n<cap)out[n++]=id; else { /* subword: greedy longest-match-first, WordPiece-style */
+                                    int off=0; int fail=0;
+                                    while(off<bn && n<cap){
+                                        int best=-1, bl=0;
+                                        for(int l=bn-off; l>0; --l){
+                                            char probe[MAXW];
+                                            if(off==0) snprintf(probe,sizeof probe,"%.*s", l, buf+off);
+                                            else snprintf(probe,sizeof probe,"##%.*s", l, buf+off);
+                                            int id=voc_id(probe);
+                                            if(id>=0){ best=id; bl=l; break; }
+                                        }
+                                        if(best<0){ fail=1; break; }
+                                        out[n++]=best; off+=bl;
+                                    }
+                                    if(fail&&n<cap)out[n++]=voc_id("[UNK]");
                 }
                 bn=0;
             }
@@ -252,7 +252,7 @@ static int encode_prefix(const char*line, int64_t* ids, int cap){
         int tok[128];
         int tn=tok_cmd(cmd,tok,128);
         if(tn){ if(tn>128)tn=128; }
-        ids0[n++]=SID_CMD_START;
+        if(n<4096) ids0[n++]=SID_CMD_START;
         for(int i=0;i<tn&&n<4096;i++) ids0[n++]=tok[i];
         if(n<4096) ids0[n++]=SID_CMD_END;
         int dtid;
@@ -263,7 +263,7 @@ static int encode_prefix(const char*line, int64_t* ids, int cap){
         if(n<4096) ids0[n++]=dtid;
         if(*p) p++;
     }
-    ids0[n++]=SID_EOS;
+    if(n<4096) ids0[n++]=SID_EOS;
     if(n>cap){
         for(int i=0;i<cap-1;i++) ids[i]=ids0[i];
         ids[cap-1]=SID_TRUNC;
@@ -420,7 +420,7 @@ int main(int argc, char **argv) {
         const float *cls_vec = hidden;
         float mal_logit = M.mal_b[0];
         for (int kdx = 0; kdx < H; ++kdx) mal_logit += cls_vec[kdx] * M.mal_w[kdx];
-        float prob = 1.0f / (1.0f + expf(-mal_logit));
+        float prob = 1.0f / (1.0f + expf(-(mal_logit / MAL_TEMP)));
         printf("%d\t%.9g\t%.9g\t%d\n", line, mal_logit, prob, (int)(prob >= TH));
     }
     clock_gettime(CLOCK_MONOTONIC, &t1);

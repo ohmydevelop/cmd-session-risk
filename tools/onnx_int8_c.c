@@ -10,6 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <math.h>
+#include "cmdrisk_calibration.h"
 #include "onnxruntime_c_api.h"
 
 #define CHECK_STATUS(expr, ort) do { OrtStatus* st_ = (expr); if (st_) { fprintf(stderr, "ORT %d: %s\n", ort->GetErrorCode(st_), ort->GetErrorMessage(st_)); ort->ReleaseStatus(st_); return 1; } } while(0)
@@ -78,7 +79,7 @@ int main(int argc, char** argv) {
         for (int i = 0; i < 14; ++i) printf(" %.9g", tact[i]);
         printf(" tech_logit");
         for (int i = 0; i < 12; ++i) printf(" %.9g", tech[i]);
-        float prob = 1.0f / (1.0f + expf(-mal[0]));
+        float prob = 1.0f / (1.0f + expf(-(mal[0] / MAL_TEMP)));
         printf(" mal_prob %.9g", prob);
         printf(" over_thr %d", (int)(prob >= TH));
         printf("\n");

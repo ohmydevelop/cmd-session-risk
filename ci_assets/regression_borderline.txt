@@ -1,0 +1,13 @@
+mpg321 try.mp3	
+mpg321 try.mp3	sudo apt-get install git-core	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	sudo apt-get update	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	sudo apt-get update	sudo apt-get install git-core	
+mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	sudo apt-get update	sudo apt-get install git-core	gpio	
+rm -rf /tmp/a

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "cmdrisk_calibration.h"
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
@@ -259,7 +260,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 14; ++i) printf(" %.9g", tact_logit[i]);
         printf(" tech_logit");
         for (int i = 0; i < 12; ++i) printf(" %.9g", tech_logit[i]);
-        printf(" mal_prob %.9g", 1.0f / (1.0f + expf(-mal_logit)));
+        printf(" mal_prob %.9g", 1.0f / (1.0f + expf(-(mal_logit / MAL_TEMP))));
         printf("\n");
         fflush(stdout);
     }
