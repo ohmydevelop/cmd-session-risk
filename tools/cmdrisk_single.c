@@ -192,46 +192,49 @@ static int is_punct_ascii(char c){
     const char* p="!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
     return strchr(p,c)!=NULL;
 }
+static int emit_wordpiece(const char *buf, int bn, int *out, int n, int cap){
+    int id = voc_id(buf);
+    if(id>=0 && n<cap){ out[n++] = id; return n; }
+    int off=0, fail=0;
+    while(off<bn && n<cap){
+        int best=-1, bl=0;
+        for(int l=bn-off; l>0; --l){
+            char probe[MAXW];
+            if(off==0) snprintf(probe,sizeof probe,"%.*s", l, buf+off);
+            else snprintf(probe,sizeof probe,"##%.*s", l, buf+off);
+            int wpid = voc_id(probe);
+            if(wpid>=0){ best=wpid; bl=l; break; }
+        }
+        if(best<0){ fail=1; break; }
+        out[n++]=best; off+=bl;
+    }
+    if(fail && n<cap) out[n++] = voc_id("[UNK]");
+    return n;
+}
+
 static int tok_cmd(const char* text, int* out, int cap){
     int n=0;
     const char*p=text;
     char buf[MAXW]; int bn=0;
-    char word[MAXW];
     while(*p){
         char c=*p;
-        if((unsigned char)c>=0x80){ /* non-ascii: emit as single-charunk if possible */
-            if(bn){ buf[bn]=0; int id=voc_id(buf); if(id>=0&&n<cap)out[n++]=id; bn=0; }
-            char sc[2]={c,0}; int id=voc_id(sc); if(id>=0&&n<cap)out[n++]=id; else if(n<cap)out[n++]=voc_id("[UNK]");
+        if((unsigned char)c>=0x80){ /* non-ascii: single-char token or [UNK] */
+            if(bn){ buf[bn]=0; n = emit_wordpiece(buf, bn, out, n, cap); bn=0; }
+            char sc[2]={c,0}; int id=voc_id(sc);
+            if(id>=0&&n<cap)out[n++]=id; else if(n<cap)out[n++]=voc_id("[UNK]");
             p++; continue;
         }
         if(isspace((unsigned char)c)||is_punct_ascii(c)){
-            if(bn){ buf[bn]=0; int id=voc_id(buf);
-                if(id>=0&&n<cap)out[n++]=id; else { /* subword: greedy longest-match-first, WordPiece-style */
-                                    int off=0; int fail=0;
-                                    while(off<bn && n<cap){
-                                        int best=-1, bl=0;
-                                        for(int l=bn-off; l>0; --l){
-                                            char probe[MAXW];
-                                            if(off==0) snprintf(probe,sizeof probe,"%.*s", l, buf+off);
-                                            else snprintf(probe,sizeof probe,"##%.*s", l, buf+off);
-                                            int id=voc_id(probe);
-                                            if(id>=0){ best=id; bl=l; break; }
-                                        }
-                                        if(best<0){ fail=1; break; }
-                                        out[n++]=best; off+=bl;
-                                    }
-                                    if(fail&&n<cap)out[n++]=voc_id("[UNK]");
-                }
-                bn=0;
-            }
+            if(bn){ buf[bn]=0; n = emit_wordpiece(buf, bn, out, n, cap); bn=0; }
             if(is_punct_ascii(c)&&c!=' '){ char p1[2]={c,0}; int id=voc_id(p1); if(id>=0&&n<cap)out[n++]=id; }
             p++; continue;
         }
         if(bn<MAXW-1){ if(c>='A'&&c<='Z')c=c-'A'+'a'; buf[bn++]=c; } p++;
     }
-    if(bn){ buf[bn]=0; int id=voc_id(buf); if(id>=0&&n<cap)out[n++]=id; }
+    if(bn){ buf[bn]=0; n = emit_wordpiece(buf, bn, out, n, cap); }
     return n;
 }
+
 #define BSEP '\x1f'
 static int encode_prefix(const char*line, int64_t* ids, int cap){
     const char*p=line; int n=0; int64_t ids0[4096];
