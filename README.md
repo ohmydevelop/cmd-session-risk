@@ -11,19 +11,19 @@ for the fallback GPU entry points, and `src/cmdrisk/` for the package.
 
 ## Install（单一二进制）——生产使用
 
-v1.1.2 的 `cmdrisk` 是**单一可执行文件**（v1.1.1 修复温度缩放、v1.1.2 新增高危单命令静态守卫）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
+v1.3.0 的 `cmdrisk` 是**单一可执行文件**（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
 
 ```bash
 # 1) 从 GitHub Release 下载到 ~/.local/bin
 mkdir -p ~/.local/bin
-gh release download v1.1.2 \
+gh release download v1.3.0 \
   --repo ohmydevelop/cmd-session-risk \
   --pattern cmdrisk \
   --output ~/.local/bin/cmdrisk
 chmod +x ~/.local/bin/cmdrisk
 export PATH="$HOME/.local/bin:$PATH"
 
-# 2) 校验完整性（expected 5eed46bcd7ebd1141be7374146296effcea4455d00cc244f75d6c1277c92c210）
+# 2) 校验完整性（expected 86303342a86c292ceb3111db96051211e6a979a613006a85c99561c848c50b9d）
 sha256sum ~/.local/bin/cmdrisk
 
 # 3) 运行：每行一个命令前缀；命令之间用 0x1f 分隔；每条命令为 <cmd><TAB><dt>
@@ -38,11 +38,14 @@ cmdrisk ci_assets/smoke_text.txt 0.0001179935351014905
 ```
 
 字段：`行号 <TAB> mal_logit <TAB> mal_prob <TAB> decision(1=告警) <TAB> rule_hit(1=静态高危模式命中)`。
-`decision = (mal_prob >= threshold) || rule_hit`；`rule_hit=1` 时 stderr 会打印 `static-critical-pattern force-alert`。
-静态守卫（`tools/cmdrisk_static_guard.h`）对 `rm -rf /`、`mkfs /dev/*`、`dd of=/dev/*`、
-`/proc/sysrq-trigger`、`useradd -u 0`、`kill -9 -1`、`curl|bash`、`/dev/tcp/`、fork bomb
-等灾难级单命令强制告警（只告警不阻断），修复了单命令分布外场景下校准模型对
-`rm -rf /` 级别的漏报，详见 `reports/STATIC_GUARD_v1.1.2_zh.md`。
+`decision = (mal_prob >= threshold) || rule_hit`；`rule_hit=1` 时 stderr 会打印 `intent-layer force-alert`。
+意图层（`tools/cmdrisk_intent.h`，v1.3.0）是一个确定性的 mini shell 语义分析器：
+拆分语句/管道、解 `sh -c` 包装、求值 `$(echo/printf)`、解码 `\xNN`/八进制/ANSI-C 引号/
+`${IFS}`、解码 base64 管道载荷、词法路径规范化（`/tmp/../etc`→`/etc`），然后对
+“递归删除系统路径 / 裸设备写 / mkfs / sysrq / useradd -u 0 / kill -9 1 / chmod -R 000,777 /
+curl|bash / /dev/tcp 反向 shell / fork bomb”等意图谓词强制告警（只告警不阻断），
+把模型在单命令分布外场景对 `rm -rf /` 级别命令的漏报降为零，详见
+`reports/INTENT_LAYER_v1.3.0_zh.md`。
 
 用 `curl` 没有 `gh` 时（需要 GitHub token）：
 

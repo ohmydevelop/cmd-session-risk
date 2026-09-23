@@ -13,3 +13,9 @@ mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade
 rm -rf /tmp/a
 rm -rf /tmp/a
 dd if=/dev/sda of=/tmp/backup.img
+rm -rf /tmp/build-cache
+shred -u /home/u/notes.txt
+echo hello world
+rm -rf /tmp/cache0
+base64 -d /etc/ssl/file.pem
+chmod -R 600 ./myapp

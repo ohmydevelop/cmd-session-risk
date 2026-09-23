@@ -11,7 +11,7 @@
 #include <string.h>
 #include <math.h>
 #include "cmdrisk_calibration.h"
-#include "cmdrisk_static_guard.h"
+#include "cmdrisk_intent.h"
 #include <ctype.h>
 #include <time.h>
 #include <unistd.h>
@@ -187,10 +187,10 @@ int main(int argc,char**argv){
         CHECK_STATUS(ort->GetTensorMutableData(outvals[2],(void**)&tech));
         line++;
         float prob=1.0f/(1.0f+expf(-(mal[0] / MAL_TEMP)));
-        int rule_hit = prefix_critical(lb);
+        int rule_hit = prefix_intent_alert(lb);
         int decis = (prob >= TH) || rule_hit;
         printf("%d\t%.9g\t%.9g\t%d\t%d\n",line,mal[0],prob,decis,rule_hit);
-        if (rule_hit) fprintf(stderr, "line %d static-critical-pattern force-alert\n", line);
+        if (rule_hit) fprintf(stderr, "line %d intent-layer force-alert\n", line);
         fflush(stdout);
         ort->ReleaseValue(invals[0]); invals[0]=0; ort->ReleaseValue(invals[1]); invals[1]=0;
         ort->ReleaseValue(outvals[0]); outvals[0]=0; ort->ReleaseValue(outvals[1]); outvals[1]=0; ort->ReleaseValue(outvals[2]); outvals[2]=0;

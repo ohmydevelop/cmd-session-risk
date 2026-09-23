@@ -7,7 +7,7 @@
 #include <string.h>
 #include <math.h>
 #include "cmdrisk_calibration.h"
-#include "cmdrisk_static_guard.h"
+#include "cmdrisk_intent.h"
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
@@ -422,10 +422,10 @@ int main(int argc, char **argv) {
         float mal_logit = M.mal_b[0];
         for (int kdx = 0; kdx < H; ++kdx) mal_logit += cls_vec[kdx] * M.mal_w[kdx];
         float prob = 1.0f / (1.0f + expf(-(mal_logit / MAL_TEMP)));
-        int rule_hit = prefix_critical(lb);
+        int rule_hit = prefix_intent_alert(lb);
         int decis = (prob >= TH) || rule_hit;
         printf("%d\t%.9g\t%.9g\t%d\t%d\n", line, mal_logit, prob, decis, rule_hit);
-        if (rule_hit) fprintf(stderr, "line %d static-critical-pattern force-alert\n", line);
+        if (rule_hit) fprintf(stderr, "line %d intent-layer force-alert\n", line);
     }
     clock_gettime(CLOCK_MONOTONIC, &t1);
     double secs = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
