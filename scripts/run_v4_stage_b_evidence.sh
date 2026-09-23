@@ -77,6 +77,7 @@ if [[ ! -d "$PROD" ]]; then
   say "STEP build_recal_artifact -> $PROD"
   "$PY" scripts/build_recal_artifact.py \
     --source-run "$RUN" --cell "$CELL" --output-run "$PROD" \
+    --model-version "$MODEL_VERSION" \
     --model-version "${MODEL_VERSION}${RECAL_SUFFIX}" >>"$LOG" 2>&1
   rc=$?
   [[ "$rc" -eq 0 && -d "$PROD" ]] || mark_failure
