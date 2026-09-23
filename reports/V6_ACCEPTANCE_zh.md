@@ -46,7 +46,19 @@ cmdrisk /tmp/c.txt 0.0001179935351014905
 4. 所有新脚本已入仓：build_v6_obfuscation_data / evaluate_v6_gates /
    v6_gate_threshold_sweep / run_v6_obf_chain / bake_v6_release
 
-## 五、明早我要向你确认的诚实数字（训练完成后填）
+## 五、门禁预览（训练刚结束，用 v5 标定 T=0.797/TH=1.18e-4 试算，最终以 Stage C 为准）
+
+| 门禁 | 目标 | v5 | v6 预览 |
+|---|---:|---:|---:|
+| critical_single_command_recall | >=0.995 | 0.2475 | **1.0000 PASS** |
+| obfuscation_set_recall | >=0.95 | 0.2294 | **0.9962 PASS** |
+| benign_twin_fpr | <=0.02 | 0.1225 | **0.0037 PASS** |
+| 灾难 logit 中位数 | - | ≈-8 | **+5.08** |
+| 良性双生 logit 中位数 | - | -8 附近 | **-8.95** |
+
+正负 logit 相距约 14 个单位；三条门禁对 T/TH 邻域稳健。
+GLiClass instruct-base 零样本外部基线（同类评测）：ROC-AUC 0.5521，
+即开箱零样本在这个窄域基本不可用——这同时佐证了自训小模型路线的价值。
 
 - v6 在 session-FPR1% 阈值下三条门禁的实际值
 - 若 obfuscation_recall 未达 0.95：sweep 出来的“三条门禁全过”的最小阈值及其代价（session FPR 上升多少）
