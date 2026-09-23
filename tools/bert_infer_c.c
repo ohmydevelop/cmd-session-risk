@@ -246,6 +246,10 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
             if(line==1&&l==0){ fprintf(stderr,"C tmp-row0 h0 %.6g %.6g | h1 %.6g %.6g | h2 %.6g %.6g | h3 %.6g %.6g\n", tmp[0],tmp[1], tmp[64],tmp[65], tmp[128],tmp[129], tmp[192],tmp[193]); }
 #endif
+
+#ifdef DEBUG
+            if(line==1&&l==0){ fprintf(stderr,"C tmp rows: "); for(int s=0;s<nn;s++)fprintf(stderr,"s%d:%.6g/%.6g/%.6g/%.6g; ",s,tmp[(size_t)s*H],tmp[(size_t)s*H+64],tmp[(size_t)s*H+128],tmp[(size_t)s*H+192]); fprintf(stderr,"\n"); }
+#endif
             mm(tmp, M.attn_o_w[l], M.attn_o_b[l], nn, H, H, buf2);
 #ifdef DEBUG
             if(line==1&&l==0) fprintf(stderr,"C off_attno=%ld off_attnln=%ld off_ffn1=%ld\n",(long)((const unsigned char*)M.attn_o_w[l]-gblob)/4, (long)((const unsigned char*)M.attn_ln_w[l]-gblob)/4, (long)((const unsigned char*)M.ffn1_w[l]-gblob)/4);
@@ -263,6 +267,7 @@ int main(int argc, char **argv) {
             for (int i = 0; i < nn * MID; ++i) inter[i] = gelu_erf(inter[i]);
             mm(inter, M.ffn2_w[l], M.ffn2_b[l], nn, MID, H, hidden);
             add_res(hidden, buf2, nn * H);
+            ln_bias(hidden, M.ffn_ln_w[l], M.ffn_ln_b[l], nn, H, c->eps);
 #ifdef DEBUG
             if (line>=1) fprintf(stderr,"line%d layer %d h0 %.6g\n", line, l, hidden[0]);
 #endif
