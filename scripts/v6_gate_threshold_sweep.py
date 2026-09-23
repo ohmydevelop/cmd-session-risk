@@ -51,6 +51,7 @@ def main() -> int:
     ap.add_argument("--artifact-dir", required=True)
     ap.add_argument("--temperature", type=float, required=True)
     ap.add_argument("--sweep-json", required=True)
+    ap.add_argument("--eval-dir", default=str(ROOT / "data/processed/v6_obf_evals"))
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -59,7 +60,7 @@ def main() -> int:
                                            command_max_tokens=128)
     sess = ort.InferenceSession(f"{args.artifact_dir}/model.onnx",
                                 providers=["CPUExecutionProvider"])
-    evald = Path(ROOT) / "data/processed/v6_obf_evals"
+    evald = Path(args.eval_dir)
     crit = score(sess, tok, evald / "critical_singles_eval.jsonl", args.temperature)
     obf = score(sess, tok, evald / "obfuscation_eval.jsonl", args.temperature)
     ben = score(sess, tok, evald / "benign_twins_eval.jsonl", args.temperature)
