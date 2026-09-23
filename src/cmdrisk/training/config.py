@@ -67,6 +67,7 @@ class TrainingRunConfig:
     data_path: str
     output_dir: str
     model_name: str = "answerdotai/ModernBERT-base"
+    base_checkpoint: str | None = None
     seed: int = 42
     max_epochs: int = 2
     short_max_length: int = 2048

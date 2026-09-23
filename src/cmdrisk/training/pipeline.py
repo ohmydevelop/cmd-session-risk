@@ -577,11 +577,19 @@ def run_training(config: TrainingRunConfig) -> Path:
     if not train_records or not dev_records or not test_records:
         raise ValueError("training data must contain train, dev, and test splits")
 
-    vocabulary = LabelVocabulary.build(
-        train_records,
-        min_technique_sessions=config.min_technique_sessions,
-        min_technique_families=config.min_technique_families,
-    )
+    if config.base_checkpoint:
+        checkpoint_vocab = Path(config.base_checkpoint) / "label_vocabulary.json"
+        if checkpoint_vocab.is_file():
+            vocabulary = LabelVocabulary.load(checkpoint_vocab)
+        else:
+            raise FileNotFoundError(
+                f"--base-checkpoint missing label_vocabulary.json: {checkpoint_vocab}")
+    else:
+        vocabulary = LabelVocabulary.build(
+            train_records,
+            min_technique_sessions=config.min_technique_sessions,
+            min_technique_families=config.min_technique_families,
+        )
     if _is_main_process():
         vocabulary.save(output_dir / "label_vocabulary.json")
     _distributed_barrier()
@@ -617,15 +625,18 @@ def run_training(config: TrainingRunConfig) -> Path:
         max_length=config.short_max_length,
         command_max_tokens=config.command_max_tokens,
     )
-    model = load_risk_backbone(
-        config.model_name,
-        label_vocabulary=vocabulary,
-        dropout=config.dropout,
-        pos_weight_cap=config.pos_weight_cap,
-        malicious_pos_weight=malicious_weights[0],
-        tactic_pos_weight=tactic_weights,
-        technique_pos_weight=technique_weights,
-    )
+    if config.base_checkpoint:
+        model = load_risk_model(config.base_checkpoint)
+    else:
+        model = load_risk_backbone(
+            config.model_name,
+            label_vocabulary=vocabulary,
+            dropout=config.dropout,
+            pos_weight_cap=config.pos_weight_cap,
+            malicious_pos_weight=malicious_weights[0],
+            tactic_pos_weight=tactic_weights,
+            technique_pos_weight=technique_weights,
+        )
     _resize_model_to_tokenizer(model, short_tokenizer)
     collator = CommandRiskCollator(short_tokenizer)
     short_dir = output_dir / "short_phase"

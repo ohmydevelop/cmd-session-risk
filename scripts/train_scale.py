@@ -29,6 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--model-name", default="google/bert_uncased_L-6_H-256_A-4")
+    parser.add_argument("--base-checkpoint", default=None,
+                        help="Continue training from an existing cmd-risk checkpoint dir.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-epochs", type=int, default=1)
     parser.add_argument("--short-max-length", type=int, default=256)
@@ -105,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         data_path=args.data,
         output_dir=args.output_dir,
         model_name=args.model_name,
+        base_checkpoint=args.base_checkpoint,
         seed=args.seed,
         max_epochs=args.max_epochs,
         short_max_length=args.short_max_length,
