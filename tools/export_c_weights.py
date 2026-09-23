@@ -12,9 +12,10 @@ import numpy as np
 from safetensors import safe_open
 
 ROOT = Path(__file__).resolve().parents[1]
-RUN = ROOT / "artifacts/cmd-session-risk-v5-l8-h256-million-gpu-20260922"
-SAFE = RUN / "short_phase/model.safetensors"
-OUT_DIR = ROOT / "work/c_engine"
+import os
+RUN = Path(os.environ.get("RUN", str(ROOT / "artifacts/cmd-session-risk-v5-l8-h256-million-gpu-20260922")))
+SAFE = Path(os.environ.get("SAFE", str(RUN / "short_phase/model.safetensors")))
+OUT_DIR = Path(os.environ.get("OUT_DIR", str(ROOT / "work/c_engine")))
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 with safe_open(str(SAFE), framework="pt") as f:

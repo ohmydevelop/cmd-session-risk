@@ -102,6 +102,38 @@ def main() -> int:
         decisions[gate_name] = passed
         results[gate_name] = r
 
+    # pooled threshold-free ranking: all catastrophic positives vs benign twins
+    from collections import OrderedDict
+    auc_scores: OrderedDict = OrderedDict
+    ys: list = [1]; ss: list = []
+    def _auc(y, s):
+        pos = [v for v, lab in zip(s, y) if lab == 1]
+        neg = [v for v, lab in zip(s, y) if lab == 0]
+        if not pos or not neg:
+            return None
+        return float(sum((p > n) + 0.5 * (p == n) for p in pos for n in neg) / (len(pos) * len(neg)))
+
+    ys, ss = [], []
+    for gate_name in ("critical_single_command_recall", "obfuscation_set_recall"):
+        rows = [json.loads(l) for l in (Path(args.eval_dir) / FILES[gate_name]).open() if l.strip()]
+        for row in rows:
+            cmds = [(c["cmd"], c.get("dt")) for c in row["commands"]]
+            enc = tok.encode([{"cmd": cmd, "dt": dt} for cmd, dt in cmds])
+            ids = list(enc.input_ids)[:256]
+            feed = {"input_ids": np.array([ids], np.int64),
+                    "attention_mask": np.ones((1, len(ids)), np.int64)}
+            logit = float(sess.run(None, feed)[0][0])
+            ys.append(1); ss.append(1.0 / (1.0 + math.exp(-logit / args.temperature)))
+    for row in [json.loads(l) for l in (Path(args.eval_dir) / FILES["benign_twin_fpr"]).open() if l.strip()]:
+        cmds = [(c["cmd"], c.get("dt")) for c in row["commands"]]
+        enc = tok.encode([{"cmd": cmd, "dt": dt} for cmd, dt in cmds])
+        ids = list(enc.input_ids)[:256]
+        feed = {"input_ids": np.array([ids], np.int64),
+                "attention_mask": np.ones((1, len(ids)), np.int64)}
+        logit = float(sess.run(None, feed)[0][0])
+        ys.append(0); ss.append(1.0 / (1.0 + math.exp(-logit / args.temperature)))
+    pooled_auc = _auc(ys, ss)
+
     overall = all(decisions.values())
     out = {
         "gate_targets": GATES,
@@ -110,6 +142,7 @@ def main() -> int:
         "threshold": args.threshold,
         "temperature": args.temperature,
         "artifact_dir": args.artifact_dir,
+        "pooled_roc_auc_pos_vs_benign_twins": pooled_auc,
     }
     Path(args.out).write_text(json.dumps(out, indent=2) + "\n")
     print(f"critical_single_command_recall = {results['critical_single_command_recall']['value']:.6f} "
