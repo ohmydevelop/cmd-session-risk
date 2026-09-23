@@ -95,3 +95,19 @@
 - 同时披露未通过门禁：ood/real_plus 切片缺失、tactic 7/14、proxy audit 空缺、Microsoft 重分发未确认。
 
 这比任何单一 benchmark 分数更可靠、更诚实。
+
+
+## 7. 外部参照与零样本基线（2026-09 当前技术）
+
+- **GLiNER / GLiClass**（urchade/knowledgator）：通用化轻量编码器路线——
+  GLiNer 做零样本 NER，GLiClass 把同架构用于单前向序列分类。
+  我们与之同类：14.3M 参数、单前向、CPU 可跑。
+  实测 `knowledgator/gliclass-instruct-base-v1.0` 零样本在我们的
+  灾难命令评测切片上 pooled ROC-AUC 仅 **0.5521**、confusion 明显，
+  说明“开箱零样本”在该窄域不可用；自训小模型是更诚实路线。
+- **needle3（Needle 3 On-Device AI Engine）**：9–29MB、2-bit(CQ2)、
+  C 原生、离线工具路由——验证了“极简端侧 + C 运行时”的可行性，
+  也即本项目单二进制（57.6MB FP32 / INT8 ONNX 路径）的同类方向；
+  未来可探索 INT8/更低比特 C 推理进一步缩小体积。
+- 结论：外部不存在能直接打分的 SOTA leaderboard；我们以
+  “同 slices 外部基线 + 内部多模型对比 + 门禁”组合作为标准答案。
