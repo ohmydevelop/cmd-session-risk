@@ -171,9 +171,6 @@ int main(int argc, char **argv) {
         int nn = parse_line(buf, tokens, S);
         if (!nn) continue;
         ++line;
-#ifdef DEBUG
-        fprintf(stderr, "line %d nn=%d first=%d\n", line, nn, tokens[0]);
-#endif
 
         for (int i = 0; i < nn; ++i) {
             const float *row = M.emb_words + (size_t)tokens[i] * H;
@@ -187,21 +184,13 @@ int main(int argc, char **argv) {
             for (int j = 0; j < H; ++j) out[j] = out[j] + prow[j] + trow[j];
         }
         ln_bias(hidden, M.emb_ln_w, M.emb_ln_b, nn, H, c->eps);
-#ifdef DEBUG
-        fprintf(stderr, "line%d embed_h0 %.6g %.6g %.6g\n", line, hidden[0],hidden[1],hidden[2]);
-#endif
-#ifdef DEBUG
-        if (line==1) { fprintf(stderr,"emb[0..3] %.6g %.6g %.6g\n", hidden[0],hidden[1],hidden[2]); }
-#endif
+
 
         for (int l = 0; l < L; ++l) {
             mm(hidden, M.q_w[l], M.q_b[l], nn, H, H, q);
             mm(hidden, M.k_w[l], M.k_b[l], nn, H, H, k);
             mm(hidden, M.v_w[l], M.v_b[l], nn, H, H, v);
 
-#ifdef DEBUG
-            if(line==1&&l==0) fprintf(stderr,"C qkvv %.6g %.6g %.6g  | %.6g %.6g %.6g  | %.6g %.6g %.6g\n", q[0],q[1],q[2], k[0],k[1],k[2], v[0],v[1],v[2]);
-#endif
             for (int h = 0; h < NH; ++h) {
                 float *sc = scores + (size_t)h * nn * nn;
                 for (int i = 0; i < nn; ++i) {
@@ -220,9 +209,6 @@ int main(int argc, char **argv) {
                     for (int j = 0; j < nn; ++j) { double e = exp((double)si[j] - (double)mx); si[j] = (float)e; sm += e; }
                     float inv = (float)(1.0 / sm);
                     for (int j = 0; j < nn; ++j) si[j] *= inv;
-#ifdef DEBUG
-                    if(line==1&&l==0&&h==0&&i==0){ fprintf(stderr,"C scores-row0: "); for(int j=0;j<nn;j++)fprintf(stderr,"%.9g ",si[j]); fprintf(stderr,"\n"); }
-#endif
                 }
                 for (int i = 0; i < nn; ++i) {
                     float *ci = ctx + (size_t)h * nn * HD + (size_t)i * HD;
@@ -237,40 +223,20 @@ int main(int argc, char **argv) {
                     memcpy(tmp + (size_t)i * H + h * HD,
                            ctx + (size_t)h * nn * HD + (size_t)i * HD,
                            sizeof(float) * HD);
-#ifdef DEBUG
-                if(line==1&&l==0&&h==0){ fprintf(stderr,"C ctx-row0: "); for(int d0=0;d0<6;d0++)fprintf(stderr,"%.6g ", ctx[d0]); fprintf(stderr,"\n"); }
-#endif
             }
 
 
-#ifdef DEBUG
-            if(line==1&&l==0){ fprintf(stderr,"C tmp-row0 h0 %.6g %.6g | h1 %.6g %.6g | h2 %.6g %.6g | h3 %.6g %.6g\n", tmp[0],tmp[1], tmp[64],tmp[65], tmp[128],tmp[129], tmp[192],tmp[193]); }
-#endif
 
-#ifdef DEBUG
-            if(line==1&&l==0){ fprintf(stderr,"C tmp rows: "); for(int s=0;s<nn;s++)fprintf(stderr,"s%d:%.6g/%.6g/%.6g/%.6g; ",s,tmp[(size_t)s*H],tmp[(size_t)s*H+64],tmp[(size_t)s*H+128],tmp[(size_t)s*H+192]); fprintf(stderr,"\n"); }
-#endif
             mm(tmp, M.attn_o_w[l], M.attn_o_b[l], nn, H, H, buf2);
-#ifdef DEBUG
-            if(line==1&&l==0) fprintf(stderr,"C off_attno=%ld off_attnln=%ld off_ffn1=%ld\n",(long)((const unsigned char*)M.attn_o_w[l]-gblob)/4, (long)((const unsigned char*)M.attn_ln_w[l]-gblob)/4, (long)((const unsigned char*)M.ffn1_w[l]-gblob)/4);
-#endif
-#ifdef DEBUG
-            if (line==1 && l==0) fprintf(stderr, "attnout0 %.6g %.6g %.6g\n", buf2[0], buf2[1], buf2[2]);
-#endif
+
             add_res(buf2, hidden, nn * H);
             ln_bias(buf2, M.attn_ln_w[l], M.attn_ln_b[l], nn, H, c->eps);
-#ifdef DEBUG
-            if (line==1 && l==0) fprintf(stderr, "attnLN0 %.6g %.6g %.6g\n", buf2[0], buf2[1], buf2[2]);
-#endif
 
             mm(buf2, M.ffn1_w[l], M.ffn1_b[l], nn, H, MID, inter);
             for (int i = 0; i < nn * MID; ++i) inter[i] = gelu_erf(inter[i]);
             mm(inter, M.ffn2_w[l], M.ffn2_b[l], nn, MID, H, hidden);
             add_res(hidden, buf2, nn * H);
             ln_bias(hidden, M.ffn_ln_w[l], M.ffn_ln_b[l], nn, H, c->eps);
-#ifdef DEBUG
-            if (line>=1) fprintf(stderr,"line%d layer %d h0 %.6g\n", line, l, hidden[0]);
-#endif
         }
 
         const float *cls_vec = hidden; /* first token, same as PyTorch forward */
