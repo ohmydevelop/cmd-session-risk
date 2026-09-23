@@ -11,19 +11,19 @@ for the fallback GPU entry points, and `src/cmdrisk/` for the package.
 
 ## Install（单一二进制）——生产使用
 
-v1.1.1 的 `cmdrisk`（v1.1.0 有温度缩放 bug，已被 v1.1.1 替代） 是**单一可执行文件**：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
+v1.1.2 的 `cmdrisk` 是**单一可执行文件**（v1.1.1 修复温度缩放、v1.1.2 新增高危单命令静态守卫）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
 
 ```bash
 # 1) 从 GitHub Release 下载到 ~/.local/bin
 mkdir -p ~/.local/bin
-gh release download v1.1.1 \
+gh release download v1.1.2 \
   --repo ohmydevelop/cmd-session-risk \
   --pattern cmdrisk \
   --output ~/.local/bin/cmdrisk
 chmod +x ~/.local/bin/cmdrisk
 export PATH="$HOME/.local/bin:$PATH"
 
-# 2) 校验完整性（expected c67be5f68ad697b5adc9dd1d635179492157408d2df6259dc2a3a2812d0d745a）
+# 2) 校验完整性（expected 5eed46bcd7ebd1141be7374146296effcea4455d00cc244f75d6c1277c92c210）
 sha256sum ~/.local/bin/cmdrisk
 
 # 3) 运行：每行一个命令前缀；命令之间用 0x1f 分隔；每条命令为 <cmd><TAB><dt>
@@ -33,11 +33,16 @@ cmdrisk ci_assets/smoke_text.txt 0.0001179935351014905
 测试样例输出格式：
 
 ```text
-1	9.77597618	0.999943256	1
-2	9.68285465	0.999937654	1
+1	9.77597713	0.999995351	1	0
+2	9.6828537	0.999994755	1	0
 ```
 
-字段：`行号 <TAB> mal_logit <TAB> mal_prob <TAB> decision(1=告警)`。
+字段：`行号 <TAB> mal_logit <TAB> mal_prob <TAB> decision(1=告警) <TAB> rule_hit(1=静态高危模式命中)`。
+`decision = (mal_prob >= threshold) || rule_hit`；`rule_hit=1` 时 stderr 会打印 `static-critical-pattern force-alert`。
+静态守卫（`tools/cmdrisk_static_guard.h`）对 `rm -rf /`、`mkfs /dev/*`、`dd of=/dev/*`、
+`/proc/sysrq-trigger`、`useradd -u 0`、`kill -9 -1`、`curl|bash`、`/dev/tcp/`、fork bomb
+等灾难级单命令强制告警（只告警不阻断），修复了单命令分布外场景下校准模型对
+`rm -rf /` 级别的漏报，详见 `reports/STATIC_GUARD_v1.1.2_zh.md`。
 
 用 `curl` 没有 `gh` 时（需要 GitHub token）：
 

