@@ -1,0 +1,257 @@
+{
+  "version": 4,
+  "description": "Pinned public sources for the cmd-session-risk v4 corpus.",
+  "sources": [
+    {
+      "id": "microsoft_iot_honeypot",
+      "adapter": "microsoft_iot",
+      "url": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft.IoT-Dump-pwd-infected.zip",
+      "license": "Microsoft sample data; repository license MIT",
+      "sha256": "e562276c328d712afe50700d78145b5a0fbb82b7b8fbbd3f1ebd424c93852036",
+      "password": "infected",
+      "redistribution": "unconfirmed; keep local until data owner permission is documented",
+      "revision": "Azure-Sentinel@048039639702f528379307aca6f6881d74b142c8",
+      "archive_json": "Microsoft.IoT-Dump1.json",
+      "notes": "Raw ZIP is about 20 MB; the encrypted JSON expands to roughly 878 MB."
+    },
+    {
+      "id": "shell_attack_evolution",
+      "adapter": "shell_attack_evolution",
+      "url": "https://github.com/zyw-286/shell-attack-evolution-dataset.git",
+      "license": "CC-BY-4.0 data; MIT code",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed with attribution under CC-BY-4.0",
+      "revision": "d5f7fe120ebd921e04026b6348c3ec5d399c5df6",
+      "huggingface_url": "https://huggingface.co/datasets/zyw-286/shell-attack-evolution-dataset",
+      "notes": "Use 2024 as a temporal out-of-distribution test period."
+    },
+    {
+      "id": "kypo_zenodo",
+      "adapter": "zenodo",
+      "url": "https://zenodo.org/api/records/8136017/files/data.zip/content",
+      "license": "CC-BY-4.0",
+      "sha256": null,
+      "checksum": "md5:a11b58d28a4c7d16482e84ed9540e238",
+      "password": null,
+      "redistribution": "allowed with attribution under CC-BY-4.0",
+      "doi": "10.5281/zenodo.8136017",
+      "notes": "Attacker-side training traffic is medium quality and must pass Teacher review."
+    },
+    {
+      "id": "atomic_red_team",
+      "adapter": "atomic_red_team",
+      "url": "https://github.com/redcanaryco/atomic-red-team.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "388942adbd9641f4dfdcf079d7efe9a75ec0ac43",
+      "notes": "Technique seeds only; expand placeholders before use."
+    },
+    {
+      "id": "actions_starter_workflows",
+      "adapter": "script_repo",
+      "url": "https://github.com/actions/starter-workflows.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "e3c451d60f119b71caebf13c98ac45da6e15b4b7"
+    },
+    {
+      "id": "docker_awesome_compose",
+      "adapter": "script_repo",
+      "url": "https://github.com/docker/awesome-compose.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "30f4b7f6a6c3b0c0ecf4d4efb0de203c48d11562"
+    },
+    {
+      "id": "ansible_examples",
+      "adapter": "script_repo",
+      "url": "https://github.com/ansible/ansible-examples.git",
+      "license": "GPL-3.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed for source extraction; preserve license and attribution",
+      "revision": "b50586543c6c4be907fdc88f9f78a2b35d2a895f"
+    },
+    {
+      "id": "kubernetes_examples",
+      "adapter": "script_repo",
+      "url": "https://github.com/kubernetes/examples.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "d6b8cd27eacb51e651a1aa6f7c190a28713eff6e"
+    },
+    {
+      "id": "puppetlabs_apache",
+      "adapter": "script_repo",
+      "url": "https://github.com/puppetlabs/puppetlabs-apache.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "35c507119cbf524f8fe57c0be4a24256f0d262cd"
+    },
+    {
+      "id": "asdf",
+      "adapter": "script_repo",
+      "url": "https://github.com/asdf-vm/asdf.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "ca98e44ff49cb0a38966b23b42db962203478b59",
+      "notes": "v4 benign shell corpus: version-manager plugin scripts."
+    },
+    {
+      "id": "bash_it",
+      "adapter": "script_repo",
+      "url": "https://github.com/Bash-it/bash-it.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "4725d29db8c0ac8c21df47664b28539f3b8fce94",
+      "notes": "v4 benign shell corpus: bash framework aliases/completions/plugins."
+    },
+    {
+      "id": "docker_bench_security",
+      "adapter": "script_repo",
+      "url": "https://github.com/docker/docker-bench-security.git",
+      "license": "Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under Apache-2.0 with attribution",
+      "revision": "154869da6418089decf7e1ab0cfca0e1cdfc5c49",
+      "notes": "v4 benign shell corpus: hardening/benchmark shell scripts."
+    },
+    {
+      "id": "nvm",
+      "adapter": "script_repo",
+      "url": "https://github.com/nvm-sh/nvm.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "a885b885fef16fac4bc544188fb25e9e37ae83e8",
+      "notes": "v4 benign shell corpus: node version manager shell functions."
+    },
+    {
+      "id": "ohmyzsh",
+      "adapter": "script_repo",
+      "url": "https://github.com/ohmyzsh/ohmyzsh.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "6421f8e104e4e87f2373362cbf61e46a918612a7",
+      "notes": "v4 benign shell corpus: zsh plugins, themes and library code."
+    },
+    {
+      "id": "pyenv",
+      "adapter": "script_repo",
+      "url": "https://github.com/pyenv/pyenv.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "3787bacc9188d76ba7ca24c23e26afb1a841a543",
+      "notes": "v4 benign shell corpus: python version manager shell code."
+    },
+    {
+      "id": "devops_bash_tools",
+      "adapter": "script_repo",
+      "url": "https://github.com/HariSekhon/DevOps-Bash-tools.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "f53e41ee8bc14af950fa6109c22542e569fae468",
+      "notes": "v4 benign shell corpus: large real-world DevOps automation library."
+    },
+    {
+      "id": "mathiasbynens_dotfiles",
+      "adapter": "script_repo",
+      "url": "https://github.com/mathiasbynens/dotfiles.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "b7c7894e7bb2de5d60bfb9a2f5e46d01a61300ea",
+      "notes": "v4 benign shell corpus: real developer dotfiles and bootstrap scripts."
+    },
+    {
+      "id": "hf_bash_history",
+      "adapter": "real_history_pool",
+      "url": "https://huggingface.co/datasets/spignelon/bash_history/resolve/4683648ef83c4b5026e219916b7f993a64b82621/bash.txt",
+      "license": "MIT (dataset card) for the pool; the embedded commands are raw third-party user history",
+      "sha256": "460ca807c3d0b1af95c3816d478e68a9d39a280029cd9b5073eac9a1b98ba88b",
+      "password": null,
+      "revision": "spignelon-bash_history@4683648ef83c4b5026e219916b7f993a64b82621",
+      "redistribution": "MIT-licensed dataset, but the payload is raw user shell history: keep train-only, never redistribute, never use in any holdout/test split",
+      "notes": "Flat pool of observed real shell commands (HF dataset spignelon/bash_history, pinned revision). Sessions are reconstructed with an explicit boundary policy (real `exit` delimiter, otherwise a 12-command synthetic window); kind=real_history_pool, quality=medium, train-only."
+    },
+    {
+      "id": "shell_command_ranking",
+      "adapter": "command_pool",
+      "url": "https://github.com/sirredbeard/shell-command-ranking.git",
+      "license": "dataset CC-BY-SA-4.0; scripts Apache-2.0",
+      "sha256": null,
+      "password": null,
+      "redistribution": "CC-BY-SA-4.0 attribution + share-alike for derived data",
+      "revision": "3d962a5744635f2da8aac76e9bf14b76fbfaf330",
+      "notes": "Command-token frequency table only (no sessions, no timestamps). Used exclusively as a benign command-type inventory for auditing coverage; it must never contribute session records."
+    },
+    {
+      "id": "ohmybash",
+      "adapter": "script_repo",
+      "url": "https://github.com/ohmybash/oh-my-bash.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "abf846186ab0a8a41ec5888e827ece6277dfe446",
+      "notes": "v4 benign shell corpus: bash framework plugins, themes and aliases."
+    },
+    {
+      "id": "zsh_autosuggestions",
+      "adapter": "script_repo",
+      "url": "https://github.com/zsh-users/zsh-autosuggestions.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5",
+      "notes": "v4 benign shell corpus: real zsh widget/plugin code and tests."
+    },
+    {
+      "id": "zsh_syntax_highlighting",
+      "adapter": "script_repo",
+      "url": "https://github.com/zsh-users/zsh-syntax-highlighting.git",
+      "license": "BSD-3-Clause",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under BSD-3-Clause with attribution",
+      "revision": "0bfcb582e71d3abe604ce67bc0fe5a21f377507e",
+      "notes": "v4 benign shell corpus: zsh highlighter library and test fixtures."
+    },
+    {
+      "id": "fzf",
+      "adapter": "script_repo",
+      "url": "https://github.com/junegunn/fzf.git",
+      "license": "MIT",
+      "sha256": null,
+      "password": null,
+      "redistribution": "allowed under MIT with attribution",
+      "revision": "b1be3a8be1b833ce5b92fbbac11637643d60a046",
+      "notes": "v4 benign shell corpus: widely deployed shell integration/completion scripts."
+    }
+  ]
+}

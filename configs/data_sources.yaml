@@ -7,7 +7,7 @@
       "adapter": "microsoft_iot",
       "url": "https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Microsoft.IoT-Dump-pwd-infected.zip",
       "license": "Microsoft sample data; repository license MIT",
-      "sha256": null,
+      "sha256": "e562276c328d712afe50700d78145b5a0fbb82b7b8fbbd3f1ebd424c93852036",
       "password": "infected",
       "redistribution": "unconfirmed; keep local until data owner permission is documented",
       "revision": "Azure-Sentinel@048039639702f528379307aca6f6881d74b142c8",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from string import Template
@@ -45,6 +46,23 @@ class PromptStore:
         if payload["name"] != name:
             raise PromptError(f"prompt name mismatch: expected {name!r}, got {payload['name']!r}")
         return payload
+
+    def fingerprint(self, name: str) -> str:
+        """Return a stable SHA-256 fingerprint of the complete prompt config."""
+
+        payload = self.load(name)
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def prompt_hash(self, name: str) -> str:
+        """Readable alias for callers constructing audit provenance."""
+
+        return self.fingerprint(name)
 
     def render(self, name: str, **values: Any) -> tuple[str, str]:
         prompt = self.load(name)

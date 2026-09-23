@@ -17,7 +17,7 @@ from cmdrisk.schema import (
     SourceKind,
     SplitName,
 )
-from cmdrisk.taxonomy import normalize_tactic, normalize_technique, tactics_for_techniques
+from cmdrisk.taxonomy import normalize_technique, tactics_for_techniques
 from cmdrisk.teacher.responses import (
     HardNegativeBatchResponse,
     HardNegativeValidationResponse,
@@ -74,6 +74,7 @@ class HardNegativeResult:
     generated: int
     rejected: int
     records: tuple[SessionRecord, ...]
+    family_id: str | None = None
 
 
 class MaliciousAugmenter:
@@ -87,6 +88,8 @@ class MaliciousAugmenter:
         confidence_floor: float = 0.75,
         evidence_tolerance: int = 1,
         max_rounds: int = 3,
+        reviewer_configs: object | None = None,
+        require_reviewer_revisions: bool = True,
     ) -> None:
         if len(validators) != 2:
             raise ValueError("malicious augmentation requires exactly two validators")
@@ -96,6 +99,14 @@ class MaliciousAugmenter:
             raise ValueError("evidence_tolerance must be non-negative")
         if max_rounds < 1:
             raise ValueError("max_rounds must be positive")
+        if reviewer_configs is not None:
+            from cmdrisk.teacher.client import validate_distinct_reviewer_configs
+
+            validate_distinct_reviewer_configs(
+                reviewer_configs,  # type: ignore[arg-type]
+                roles=("generator", "validator_1", "validator_2"),
+                require_revision=require_reviewer_revisions,
+            )
         self.generator = generator
         self.validators = validators
         self.confidence_floor = confidence_floor
@@ -105,6 +116,10 @@ class MaliciousAugmenter:
     def augment(self, parent: SessionRecord, count: int = 10) -> AugmentationResult:
         if parent.label.malicious != 1 or parent.label.first_evidence_index is None:
             raise AugmentationError("augmentation parent must have a malicious consensus label")
+        if not parent.label.technique_evidence:
+            raise AugmentationError(
+                "augmentation parent must include per-technique evidence"
+            )
         if count < 8 or count > 12:
             raise AugmentationError("count must be between 8 and 12")
 
@@ -181,40 +196,63 @@ class MaliciousAugmenter:
         if max(all_evidence_indices) - min(all_evidence_indices) > self.evidence_tolerance:
             return None
         first_evidence = min(all_evidence_indices)
-        techniques = _consensus_techniques(
-            [
+        source_evidence = [
+            _source_technique_evidence(
+                variant.technique_evidence,
                 variant.techniques,
+                variant.first_evidence_index,
+                len(commands),
+            ),
+            _source_technique_evidence(
+                first_validator.technique_evidence,
                 first_validator.techniques,
+                first_validator.first_evidence_index,
+                len(commands),
+            ),
+            _source_technique_evidence(
+                second_validator.technique_evidence,
                 second_validator.techniques,
-            ]
+                second_validator.first_evidence_index,
+                len(commands),
+            ),
+        ]
+        technique_evidence = _consensus_technique_evidence(
+            source_evidence,
+            first_evidence,
+            len(commands),
         )
-        tactics = _consensus_tactics(
-            [variant.tactics, first_validator.tactics, second_validator.tactics],
-            techniques,
-        )
+        if not technique_evidence:
+            return None
+        tactics = _tactics_for_evidence(technique_evidence)
         label = Label(
             malicious=1,
             first_evidence_index=first_evidence,
-            technique_evidence={technique: [first_evidence] for technique in techniques},
+            technique_evidence=technique_evidence,
             tactics=tactics,
-            techniques=techniques,
+            techniques=list(technique_evidence),
             quality=LabelQuality.HIGH,
             teacher_votes=[
-                {
-                    "role": "generator",
-                    "first_evidence_index": variant.first_evidence_index,
-                    "confidence": variant.confidence,
-                },
-                {
-                    "role": "validator_1",
-                    "first_evidence_index": first_validator.first_evidence_index,
-                    "confidence": first_validator.confidence,
-                },
-                {
-                    "role": "validator_2",
-                    "first_evidence_index": second_validator.first_evidence_index,
-                    "confidence": second_validator.confidence,
-                },
+                _malicious_vote_payload(
+                    "generator",
+                    variant.first_evidence_index,
+                    variant.technique_evidence,
+                    variant.techniques,
+                    variant.confidence,
+                ),
+                _malicious_vote_payload(
+                    "validator_1",
+                    first_validator.first_evidence_index,
+                    first_validator.technique_evidence,
+                    first_validator.techniques,
+                    first_validator.confidence,
+                ),
+                _malicious_vote_payload(
+                    "validator_2",
+                    second_validator.first_evidence_index,
+                    second_validator.technique_evidence,
+                    second_validator.techniques,
+                    second_validator.confidence,
+                ),
             ],
         )
         source = SourceInfo(
@@ -232,6 +270,7 @@ class MaliciousAugmenter:
                 **parent.meta,
                 "parent_first_evidence_index": parent_evidence,
                 "generator_variant_index": variant.first_evidence_index,
+                "source_generator": "teacher",
             },
             label=label,
             split=parent.split,
@@ -248,6 +287,8 @@ class HardNegativeGenerator:
         *,
         confidence_floor: float = 0.75,
         max_rounds: int = 3,
+        reviewer_configs: object | None = None,
+        require_reviewer_revisions: bool = True,
     ) -> None:
         if len(validators) != 2:
             raise ValueError("hard-negative generation requires exactly two validators")
@@ -255,6 +296,14 @@ class HardNegativeGenerator:
             raise ValueError("confidence_floor must be between 0 and 1")
         if max_rounds < 1:
             raise ValueError("max_rounds must be positive")
+        if reviewer_configs is not None:
+            from cmdrisk.teacher.client import validate_distinct_reviewer_configs
+
+            validate_distinct_reviewer_configs(
+                reviewer_configs,  # type: ignore[arg-type]
+                roles=("generator", "validator_1", "validator_2"),
+                require_revision=require_reviewer_revisions,
+            )
         self.generator = generator
         self.validators = validators
         self.confidence_floor = confidence_floor
@@ -265,12 +314,27 @@ class HardNegativeGenerator:
         seed: dict[str, object],
         *,
         source: SourceInfo,
-        family_id: str,
+        family_id: str | None = None,
         count: int = 8,
         split: SplitName | None = None,
     ) -> HardNegativeResult:
+        """Generate hard negatives from a seed/context.
+
+        ``family_id`` is accepted for backwards compatibility but deliberately
+        ignored.  Family identity is derived from the canonical seed and source
+        so an operator cannot accidentally merge unrelated families.
+        """
+
         if count < 1 or count > 32:
             raise AugmentationError("count must be between 1 and 32")
+        derived_family_id = derive_hard_negative_family_id(seed, source)
+        seed_sha256 = _seed_sha256(seed, source)
+        seed_parent_session_id = _seed_parent_session_id(seed)
+        effective_source = source
+        if seed_parent_session_id and not source.parent_session_id:
+            effective_source = source.model_copy(
+                update={"parent_session_id": seed_parent_session_id}
+            )
         accepted: list[SessionRecord] = []
         seen: set[tuple[str, ...]] = set()
         rejected = 0
@@ -300,10 +364,14 @@ class HardNegativeGenerator:
                 accepted.append(
                     _hard_negative_record(
                         commands,
-                        source=source,
-                        family_id=family_id,
+                        source=effective_source,
+                        family_id=derived_family_id,
                         split=split,
                         validators=(first, second),
+                        seed=seed,
+                        seed_sha256=seed_sha256,
+                        seed_parent_session_id=seed_parent_session_id,
+                        operator_family_id=family_id,
                     )
                 )
                 if len(accepted) >= count:
@@ -318,6 +386,7 @@ class HardNegativeGenerator:
             generated=generated,
             rejected=rejected,
             records=tuple(accepted[:count]),
+            family_id=derived_family_id,
         )
 
 
@@ -333,42 +402,140 @@ def _validator_accepts(
         and response.first_evidence_index is not None
         and abs(response.first_evidence_index - parent_evidence) <= tolerance
         and response.confidence >= confidence_floor
+        and bool(response.technique_evidence)
     )
 
 
-def _consensus_techniques(groups: list[list[str]]) -> list[str]:
-    counts: Counter[str] = Counter()
-    for group in groups:
-        counts.update(
+def _source_technique_evidence(
+    evidence: dict[str, list[int]],
+    techniques: list[str],
+    first_evidence: int | None,
+    command_count: int,
+) -> dict[str, list[int]]:
+    """Normalize one response's evidence without inventing indices."""
+
+    if first_evidence is None:
+        return {}
+    result: dict[str, list[int]] = {}
+    # Evidence keys are authoritative.  The advertised technique list is kept
+    # separately in teacher_votes and never used to synthesize an index.
+    for raw_technique, raw_indices in evidence.items():
+        technique = normalize_technique(raw_technique)
+        if technique is None:
+            continue
+        valid = sorted(
             {
-                technique
-                for raw in group
-                if (technique := normalize_technique(raw)) is not None
+                int(index)
+                for index in raw_indices
+                if isinstance(index, int)
+                and first_evidence <= index < command_count
             }
         )
-    return sorted(technique for technique, count in counts.items() if count >= 2)
+        if valid:
+            result[technique] = sorted(set(result.get(technique, [])) | set(valid))
+    return result
 
 
-def _consensus_tactics(groups: list[list[str]], techniques: list[str]) -> list[str]:
+def _consensus_technique_evidence(
+    groups: list[dict[str, list[int]]],
+    first_evidence: int,
+    command_count: int,
+) -> dict[str, list[int]]:
     counts: Counter[str] = Counter()
+    indices: dict[str, set[int]] = {}
     for group in groups:
-        counts.update(
-            {tactic for raw in group if (tactic := normalize_tactic(raw)) is not None}
-        )
-    explicit = {tactic for tactic, count in counts.items() if count >= 2}
-    return sorted(explicit | set(tactics_for_techniques(techniques)))
+        for technique, values in group.items():
+            valid = {
+                index
+                for index in values
+                if first_evidence <= index < command_count
+            }
+            if not valid:
+                continue
+            counts[technique] += 1
+            indices.setdefault(technique, set()).update(valid)
+    return {
+        technique: sorted(indices[technique])
+        for technique in sorted(indices)
+        if counts[technique] >= 2
+    }
+
+
+def _tactics_for_evidence(technique_evidence: dict[str, list[int]]) -> list[str]:
+    return tactics_for_techniques(list(technique_evidence))
+
+
+def _malicious_vote_payload(
+    role: str,
+    first_evidence_index: int | None,
+    technique_evidence: dict[str, list[int]],
+    techniques: list[str],
+    confidence: float,
+) -> dict[str, object]:
+    return {
+        "role": role,
+        "provenance": "raw_model_vote",
+        "first_evidence_index": first_evidence_index,
+        "technique_evidence": {
+            technique: list(indices)
+            for technique, indices in technique_evidence.items()
+        },
+        "techniques": list(techniques),
+        "confidence": confidence,
+    }
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+def derive_hard_negative_family_id(seed: dict[str, object], source: SourceInfo) -> str:
+    """Derive a stable family ID from the seed and source provenance."""
+
+    payload = {
+        "version": 1,
+        "seed": seed,
+        "source": source.model_dump(mode="json", exclude_none=True),
+    }
+    digest = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+    return f"hard-negative:{digest}"
+
+
+def _seed_sha256(seed: dict[str, object], source: SourceInfo) -> str:
+    payload = {
+        "seed": seed,
+        "source": source.model_dump(mode="json", exclude_none=True),
+    }
+    return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def _seed_parent_session_id(seed: dict[str, object]) -> str | None:
+    for key in ("parent_session_id", "seed_parent_session_id", "session_id"):
+        value = seed.get(key)
+        if isinstance(value, str) and value:
+            return value
+    nested = seed.get("source")
+    if isinstance(nested, dict):
+        for key in ("parent_session_id", "session_id"):
+            value = nested.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return None
 
 
 def _variant_id(parent_id: str, commands: list[str], first_evidence: int) -> str:
-    payload = json.dumps(
+    payload = _canonical_json(
         {
             "parent": parent_id,
             "commands": commands,
             "first_evidence_index": first_evidence,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
+        }
     )
     return f"sha256:{hashlib.sha256(payload.encode()).hexdigest()}"
 
@@ -380,14 +547,32 @@ def _hard_negative_record(
     family_id: str,
     split: SplitName | None,
     validators: tuple[HardNegativeValidationResponse, HardNegativeValidationResponse],
+    seed: dict[str, object],
+    seed_sha256: str,
+    seed_parent_session_id: str | None,
+    operator_family_id: str | None,
 ) -> SessionRecord:
-    payload = json.dumps(commands, separators=(",", ":"), ensure_ascii=False)
-    session_id = f"sha256:{hashlib.sha256(payload.encode()).hexdigest()}"
+    session_payload = {
+        "family_id": family_id,
+        "commands": commands,
+        "seed_sha256": seed_sha256,
+    }
+    session_id = f"sha256:{hashlib.sha256(_canonical_json(session_payload).encode()).hexdigest()}"
+    meta: dict[str, object] = {
+        "hard_negative_seed_sha256": seed_sha256,
+        "hard_negative_seed": seed,
+        "hard_negative_family_id": family_id,
+        "seed_parent_session_id": seed_parent_session_id,
+        "seed_source": source.model_dump(mode="json", exclude_none=True),
+    }
+    if operator_family_id is not None and operator_family_id != family_id:
+        meta["operator_family_id_ignored"] = operator_family_id
     return SessionRecord(
         session_id=session_id,
         source=source.model_copy(update={"kind": SourceKind.HARD_NEGATIVE}),
         family_id=family_id,
         commands=[CommandEvent(cmd=command) for command in commands],
+        meta=meta,
         label=Label(
             malicious=0,
             first_evidence_index=None,
@@ -396,8 +581,16 @@ def _hard_negative_record(
             techniques=[],
             quality=LabelQuality.HIGH,
             teacher_votes=[
-                {"role": "validator_1", "confidence": validators[0].confidence},
-                {"role": "validator_2", "confidence": validators[1].confidence},
+                {
+                    "role": "validator_1",
+                    "provenance": "raw_model_vote",
+                    "confidence": validators[0].confidence,
+                },
+                {
+                    "role": "validator_2",
+                    "provenance": "raw_model_vote",
+                    "confidence": validators[1].confidence,
+                },
             ],
         ),
         split=split,

@@ -1,0 +1,18 @@
+{
+  "benign_sampled": 207,
+  "cases": 607,
+  "chunk_size": 50,
+  "chunks": 13,
+  "input": "data/processed/v2/test.jsonl",
+  "input_sessions": 1958,
+  "malicious_sampled": 400,
+  "seed": 20260919,
+  "selection": "hash-ranked deterministic sample by sha256(seed:session_id); reviewers see only session_id and commands",
+  "source_kinds": {
+    "hard_negative": 26,
+    "llm_variant": 20,
+    "real_benign": 171,
+    "real_malicious": 380,
+    "script_benign": 10
+  }
+}

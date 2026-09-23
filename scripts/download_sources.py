@@ -18,7 +18,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from cmdrisk.data.manifest import (  # noqa: E402
     load_data_sources,
-    sha256_file,
+    source_checksums,
+    verify_file_checksum,
     write_json_atomic,
     write_sha256_manifest,
 )
@@ -67,20 +68,61 @@ def _http_download(source: dict[str, Any], destination: Path, *, timeout: float)
 
 def _git_download(source: dict[str, Any], destination: Path, *, resume: bool) -> None:
     url = str(source["url"])
-    revision = source.get("revision")
+    raw_revision = source.get("revision")
+    revision = str(raw_revision).split("@", 1)[-1] if raw_revision else None
+    if not revision:
+        raise RuntimeError(f"Git source {source.get('id')} is missing a pinned revision")
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() and (destination / ".git").exists():
-        if resume:
-            return
-        subprocess.run(["git", "-C", str(destination), "fetch", "--all", "--tags"], check=True)
+        if not resume:
+            subprocess.run(
+                ["git", "-C", str(destination), "fetch", "--all", "--tags"], check=True
+            )
     elif destination.exists():
         raise RuntimeError(f"destination exists and is not a Git repository: {destination}")
     else:
         subprocess.run(["git", "clone", url, str(destination)], check=True)
-    if revision:
-        subprocess.run(
-            ["git", "-C", str(destination), "checkout", "--detach", str(revision)], check=True
+
+    has_revision = subprocess.run(
+        ["git", "-C", str(destination), "cat-file", "-e", f"{revision}^{{commit}}"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if has_revision.returncode != 0:
+        raise RuntimeError(
+            f"pinned revision {revision} is not available for {source.get('id')}; "
+            "rerun without --resume to fetch it"
         )
+    subprocess.run(
+        ["git", "-C", str(destination), "checkout", "--detach", revision], check=True
+    )
+    head = subprocess.run(
+        ["git", "-C", str(destination), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if head.casefold() != revision.casefold():
+        raise RuntimeError(
+            f"Git revision mismatch for {source.get('id')}: expected {revision}, got {head}"
+        )
+
+
+def _verify_download(source: dict[str, Any], destination: Path) -> None:
+    for checksum in source_checksums(source):
+        try:
+            verify_file_checksum(destination, checksum)
+        except ValueError as exc:
+            source_id = source.get('id')
+            raise RuntimeError(
+                f"checksum verification failed for {source_id}: {exc}"
+            ) from exc
+
+
+def _is_git_source(source: dict[str, Any]) -> bool:
+    url = str(source["url"]).split("?", 1)[0]
+    return url.rstrip("/").endswith(".git")
 
 
 def main() -> int:
@@ -96,7 +138,7 @@ def main() -> int:
 
     if args.dry_run:
         for source in sources:
-            kind = "git" if str(source["url"]).endswith(".git") else "http"
+            kind = "git" if _is_git_source(source) else "http"
             destination = args.output_dir / str(source["id"])
             print(json.dumps({"id": source["id"], "kind": kind, "destination": str(destination)}))
         return 0
@@ -107,28 +149,20 @@ def main() -> int:
         source_id = str(source["id"])
         url = str(source["url"])
         destination = args.output_dir / source_id
-        if url.endswith(".git"):
-            if args.resume and destination.exists():
-                print(f"skip {source_id}: {destination}")
-                outputs.append(destination)
-                continue
+        if _is_git_source(source):
             _git_download(source, destination, resume=args.resume)
             outputs.append(destination)
         else:
             suffix = Path(urllib.parse.urlparse(url).path).suffix or ".bin"
             destination = destination.with_suffix(suffix)
             if args.resume and destination.exists():
+                _verify_download(source, destination)
                 print(f"skip {source_id}: {destination}")
                 outputs.append(destination)
                 continue
             _http_download(source, destination, timeout=args.timeout)
+            _verify_download(source, destination)
             outputs.append(destination)
-
-        expected = source.get("sha256")
-        if expected and not destination.is_dir():
-            actual = sha256_file(destination)
-            if actual.casefold() != str(expected).casefold():
-                raise RuntimeError(f"SHA256 mismatch for {source_id}: expected {expected}, got {actual}")
 
     manifest_path = args.output_dir / "SHA256SUMS"
     files = [item for item in outputs if item.is_file()]

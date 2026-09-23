@@ -8,6 +8,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from cmdrisk.artifact_manifest import (
+    EXPORT_MANIFEST_SCHEMA,
+    EXPORT_MANIFEST_VERSION,
+    build_artifact_entries,
+    write_manifest_atomic,
+)
 from cmdrisk.runtime import SessionScorer, dt_bucket
 
 
@@ -99,7 +105,30 @@ def _artifact(tmp_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    _write_export_manifest(artifact, ["model.onnx"])
     return artifact
+
+
+def _write_export_manifest(artifact: Path, extra: list[str]) -> None:
+    names = [
+        path.relative_to(artifact).as_posix()
+        for path in artifact.rglob("*")
+        if path.is_file() and path.name != "export_manifest.json"
+    ]
+    names = sorted(dict.fromkeys([*names, *extra]))
+    artifacts = build_artifact_entries(artifact, names)
+    write_manifest_atomic(
+        artifact / "export_manifest.json",
+        {
+            "schema": EXPORT_MANIFEST_SCHEMA,
+            "version": EXPORT_MANIFEST_VERSION,
+            "fp32_model": "model.onnx",
+            "int8_model": None,
+            "artifacts": artifacts,
+            "checksums": {name: entry["sha256"] for name, entry in artifacts.items()},
+            "sizes": {name: entry["size"] for name, entry in artifacts.items()},
+        },
+    )
 
 
 def test_from_onnx_and_online_prefix_latching(tmp_path: Path) -> None:
@@ -158,6 +187,95 @@ def test_from_onnx_and_online_prefix_latching(tmp_path: Path) -> None:
         ]
     )["input_ids"][0].tolist()
     assert marker.special_token_id("<DT_LE_1S>") in third_ids
+
+
+class BatchOnnxSession:
+    """Batch-aware fake session whose logits ignore padded positions."""
+
+    def __init__(self) -> None:
+        self.batch_sizes: list[int] = []
+
+    def get_inputs(self) -> list[SimpleNamespace]:
+        return [SimpleNamespace(name="input_ids"), SimpleNamespace(name="attention_mask")]
+
+    def get_outputs(self) -> list[SimpleNamespace]:
+        return [
+            SimpleNamespace(name="malicious_logits"),
+            SimpleNamespace(name="tactics_logits"),
+            SimpleNamespace(name="techniques_logits"),
+        ]
+
+    def run(self, output_names: object, input_feed: dict[str, np.ndarray]) -> list[np.ndarray]:
+        del output_names
+        ids = input_feed["input_ids"].astype(np.float64)
+        mask = input_feed["attention_mask"].astype(np.float64)
+        rows = int(ids.shape[0])
+        self.batch_sizes.append(rows)
+        totals = (ids * mask).sum(axis=1)
+        malicious = np.where(totals > 500.0, 9.0, -9.0).reshape(rows, 1)
+        tactics = np.stack(
+            [
+                np.where(totals > 500.0, 9.0, -9.0),
+                np.where(totals > 900.0, 9.0, -9.0),
+            ],
+            axis=1,
+        )
+        techniques = np.where(totals % 2 == 0, 9.0, -9.0).reshape(rows, 1)
+        return [malicious, tactics, techniques]
+
+
+def test_score_batch_matches_sequential(tmp_path: Path) -> None:
+    session = BatchOnnxSession()
+    scorer = SessionScorer.from_onnx(
+        _artifact(tmp_path), onnx_session=session, tokenizer=FakeTokenizer()
+    )
+    prefixes = [
+        [("whoami", 0)],
+        [("whoami", 0), ("curl -o /tmp/a https://example.invalid/a", 2.1)],
+        [("whoami", 0), ("uname -a", 1.0), ("chmod +x /tmp/a", 0.4)],
+    ]
+
+    batched = scorer.score_batch(prefixes)
+    assert session.batch_sizes == [3]
+    sequential = [scorer.score_commands(prefix) for prefix in prefixes]
+    assert batched == sequential
+    assert [entry.command_index for entry in batched] == [0, 1, 2]
+
+    # Batching must not change the alert-latching contract of a session result.
+    state = scorer.start_session("batched")
+    state.absorb(batched)
+    result = state.result()
+    assert result.session_id == "batched"
+    assert result.peak_probability == max(entry.malicious_probability for entry in batched)
+    assert result.alerted is any(entry.alert for entry in batched)
+
+    # Padding is inert: scoring the same prefix alone yields identical logits.
+    single = scorer.score_batch([prefixes[0]])[0]
+    assert single.malicious_probability == batched[0].malicious_probability
+
+
+def test_token_count_matches_encode_width(tmp_path: Path) -> None:
+    scorer = SessionScorer.from_onnx(
+        _artifact(tmp_path), onnx_session=BatchOnnxSession(), tokenizer=FakeTokenizer()
+    )
+    prefix = [("whoami", 0), ("curl -o /tmp/a https://example.invalid/a", 2.1)]
+    assert scorer.token_count(prefix) == scorer._encode(prefix)["input_ids"].shape[1]
+    assert scorer.token_count(prefix) > scorer.token_count(prefix[:1])
+
+
+def test_score_batch_handles_mixed_lengths_and_empty_input(tmp_path: Path) -> None:
+    session = BatchOnnxSession()
+    scorer = SessionScorer.from_onnx(
+        _artifact(tmp_path), onnx_session=session, tokenizer=FakeTokenizer()
+    )
+    assert scorer.score_batch([]) == []
+    long_prefix = [("cmd-" + "x" * 40, 0.0)]
+    short_prefix = [("ls", None)]
+    entries = scorer.score_batch([short_prefix, long_prefix])
+    assert session.batch_sizes == [2]
+    assert entries[0].command_index == 0
+    assert entries[1].command_index == 0
+    assert entries[0].malicious_probability < entries[1].malicious_probability
 
 
 def test_empty_session_result_is_stable(tmp_path: Path) -> None:
@@ -283,7 +401,10 @@ def test_training_format_calibration_fields(tmp_path: Path) -> None:
         },
     )
     scorer = SessionScorer.from_onnx(
-        artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer()
+        artifact,
+        onnx_session=FakeOnnxSession(),
+        tokenizer=FakeTokenizer(),
+        verify_manifest=False,
     )
     assert scorer.malicious_temperature == pytest.approx(2.5)
     assert scorer.malicious_threshold == pytest.approx(0.72)
@@ -302,7 +423,10 @@ def test_labels_json_string_vocab_resolves_taxonomy_names(tmp_path: Path) -> Non
         {"version": 1, "tactics": ["TA0007", "TA0002"], "techniques": ["T1105"]},
     )
     scorer = SessionScorer.from_onnx(
-        artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer()
+        artifact,
+        onnx_session=FakeOnnxSession(),
+        tokenizer=FakeTokenizer(),
+        verify_manifest=False,
     )
     assert [label[0] for label in scorer.tactic_labels] == ["TA0007", "TA0002"]
     assert scorer.tactic_labels[0][1] == "Discovery"
@@ -344,3 +468,100 @@ def test_singular_tactic_output_name_alias(tmp_path: Path) -> None:
     assert [item.id for item in entry.tactics] == ["TA0002"]
     assert entry.tactics[0].name == "Execution"
     assert entry.attack_stage == "Execution"
+
+
+def test_from_onnx_requires_manifest_by_default(tmp_path: Path) -> None:
+    from cmdrisk.runtime.scoring import ArtifactLoadError
+
+    artifact = _artifact(tmp_path)
+    (artifact / "export_manifest.json").unlink()
+    with pytest.raises(ArtifactLoadError, match="manifest verification failed"):
+        SessionScorer.from_onnx(
+            artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer()
+        )
+    # The escape hatch keeps legacy bundles loadable during migration.
+    scorer = SessionScorer.from_onnx(
+        artifact,
+        onnx_session=FakeOnnxSession(),
+        tokenizer=FakeTokenizer(),
+        verify_manifest=False,
+    )
+    assert scorer.model_version == "test-v1"
+
+
+def test_from_onnx_rejects_tampered_artifact(tmp_path: Path) -> None:
+    from cmdrisk.runtime.scoring import ArtifactLoadError
+
+    artifact = _artifact(tmp_path)
+    (artifact / "calibration.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(ArtifactLoadError, match="manifest verification failed"):
+        SessionScorer.from_onnx(
+            artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer()
+        )
+
+
+def test_from_onnx_preloads_cuda_libraries_when_requested(tmp_path: Path, monkeypatch) -> None:
+    artifact = _artifact(tmp_path)
+    calls: list[object] = []
+    session = FakeOnnxSession()
+
+    class SessionOptions:
+        intra_op_num_threads = 1
+        inter_op_num_threads = 1
+
+    def make_session(path: str, sess_options: object = None, providers: object = None):
+        del path, sess_options
+        calls.append(("session", list(providers or ())))
+        return session
+
+    fake_ort = SimpleNamespace(
+        SessionOptions=SessionOptions,
+        InferenceSession=make_session,
+        preload_dlls=lambda *args, **kwargs: calls.append("preload"),
+    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
+
+    SessionScorer.from_onnx(
+        artifact,
+        tokenizer=FakeTokenizer(),
+        providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+    )
+    assert calls[0] == "preload"
+    assert calls[1] == ("session", ["CUDAExecutionProvider", "CPUExecutionProvider"])
+
+    # CPU-only loads must not touch the CUDA libraries at all.
+    cpu_calls: list[object] = []
+
+    def make_cpu_session(*args: object, **kwargs: object) -> object:
+        cpu_calls.append(("session", kwargs.get("providers")))
+        return session
+
+    fake_ort_cpu = SimpleNamespace(
+        SessionOptions=SessionOptions,
+        InferenceSession=make_cpu_session,
+        preload_dlls=lambda *args, **kwargs: cpu_calls.append("preload"),
+    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort_cpu)
+    SessionScorer.from_onnx(artifact, tokenizer=FakeTokenizer())
+    assert cpu_calls == [("session", ["CPUExecutionProvider"])]
+
+
+def test_from_onnx_tolerates_missing_preload_helper(tmp_path: Path, monkeypatch) -> None:
+    artifact = _artifact(tmp_path)
+    session = FakeOnnxSession()
+
+    class SessionOptions:
+        intra_op_num_threads = 1
+        inter_op_num_threads = 1
+
+    fake_ort = SimpleNamespace(
+        SessionOptions=SessionOptions,
+        InferenceSession=lambda *args, **kwargs: session,
+    )
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
+    scorer = SessionScorer.from_onnx(
+        artifact,
+        tokenizer=FakeTokenizer(),
+        providers=["CUDAExecutionProvider"],
+    )
+    assert scorer.model_version == "test-v1"

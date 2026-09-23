@@ -200,6 +200,171 @@ def _remote_path(remote_root: str, relative: str) -> str:
     return f"{remote_root.rstrip('/')}/{relative.lstrip('/')}"
 
 
+def _ssh_command(
+    ssh_target: str,
+    remote_command: str,
+    *,
+    ssh_port: int | None,
+    ssh_key: str | None,
+) -> list[str]:
+    command = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new"]
+    if ssh_port is not None:
+        command.extend(["-p", str(ssh_port)])
+    if ssh_key:
+        command.extend(["-i", str(Path(ssh_key).expanduser())])
+    command.extend([ssh_target, remote_command])
+    return command
+
+
+def run_ssh(
+    ssh_target: str,
+    remote_command: str,
+    *,
+    ssh_port: int | None = None,
+    ssh_key: str | None = None,
+    runner: Any = subprocess.run,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command on the remote host, failing closed on transport errors."""
+
+    command = _ssh_command(
+        ssh_target, remote_command, ssh_port=ssh_port, ssh_key=ssh_key
+    )
+    try:
+        return runner(command, check=False, text=True, capture_output=True)
+    except (FileNotFoundError, OSError) as exc:
+        raise SyncError(f"cannot execute ssh: {exc}") from exc
+
+
+def check_connectivity(
+    ssh_target: str,
+    *,
+    ssh_port: int | None = None,
+    ssh_key: str | None = None,
+    runner: Any = subprocess.run,
+) -> None:
+    completed = run_ssh(
+        ssh_target, "true", ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise SyncError(f"cannot reach remote host {ssh_target}: {detail}")
+
+
+def _parse_int_output(value: str) -> int | None:
+    for token in value.split():
+        cleaned = token.strip().replace(",", "")
+        if cleaned.isdigit():
+            return int(cleaned)
+    return None
+
+
+def remote_disk_free_bytes(
+    ssh_target: str,
+    remote_path: str,
+    *,
+    ssh_port: int | None = None,
+    ssh_key: str | None = None,
+    runner: Any = subprocess.run,
+) -> int:
+    """Return free bytes for the filesystem backing ``remote_path``."""
+
+    command = (
+        f"df -Pk {shlex.quote(remote_path)} 2>/dev/null | tail -n 1 | awk '{{print $4}}'"
+    )
+    completed = run_ssh(
+        ssh_target, command, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise SyncError(f"remote disk check failed: {detail}")
+    kib = _parse_int_output(completed.stdout)
+    if kib is None:
+        raise SyncError("remote disk check returned no free-space value")
+    return kib * 1024
+
+
+def remote_gpu_report(
+    ssh_target: str,
+    *,
+    ssh_port: int | None = None,
+    ssh_key: str | None = None,
+    runner: Any = subprocess.run,
+) -> dict[str, Any]:
+    """Return remote GPU availability without failing when nvidia-smi is absent."""
+
+    command = (
+        "nvidia-smi --query-gpu=name,memory.total "
+        "--format=csv,noheader,nounits 2>/dev/null || true"
+    )
+    completed = run_ssh(
+        ssh_target, command, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
+    )
+    devices: list[dict[str, Any]] = []
+    for line in (completed.stdout or "").splitlines():
+        fields = [field.strip() for field in line.split(",")]
+        if len(fields) < 2:
+            continue
+        memory = _parse_int_output(fields[1])
+        devices.append({"name": fields[0], "memory_total_mib": memory})
+    max_vram = max(
+        (device["memory_total_mib"] for device in devices if device["memory_total_mib"]),
+        default=0,
+    )
+    return {"count": len(devices), "devices": devices, "max_vram_mib": max_vram}
+
+
+def preflight_remote(
+    ssh_target: str,
+    remote_path: str,
+    *,
+    ssh_port: int | None = None,
+    ssh_key: str | None = None,
+    min_free_disk_gb: float = 0.0,
+    require_cuda: bool = False,
+    min_vram_gb: float = 0.0,
+    runner: Any = subprocess.run,
+) -> dict[str, Any]:
+    """Fail-closed connectivity/disk/GPU preflight before a transfer.
+
+    Raises :class:`SyncError` when the host is unreachable or a configured
+    minimum cannot be satisfied.
+    """
+
+    if not ssh_target:
+        raise SyncError("an SSH target is required")
+    check_connectivity(
+        ssh_target, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
+    )
+
+    failures: list[str] = []
+    report: dict[str, Any] = {"ssh_target": ssh_target, "remote_path": remote_path}
+
+    free_bytes = remote_disk_free_bytes(
+        ssh_target, remote_path, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
+    )
+    report["free_bytes"] = free_bytes
+    if min_free_disk_gb > 0 and free_bytes < min_free_disk_gb * 1024**3:
+        failures.append(f"insufficient_free_disk<{min_free_disk_gb:g}GiB")
+
+    if require_cuda or min_vram_gb > 0:
+        gpu = remote_gpu_report(
+            ssh_target, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
+        )
+        report["gpu"] = gpu
+        if require_cuda and gpu["count"] < 1:
+            failures.append("no_cuda_gpu")
+        if min_vram_gb > 0 and gpu["max_vram_mib"] < min_vram_gb * 1024:
+            failures.append(f"insufficient_vram<{min_vram_gb:g}GiB")
+
+    report["passed"] = not failures
+    report["failures"] = failures
+    if failures:
+        raise SyncError(
+            "remote preflight failed: " + ", ".join(failures)
+        )
+    return report
+
+
 def upload_processed(
     *,
     local_root: Path,
@@ -208,10 +373,29 @@ def upload_processed(
     ssh_port: int | None = None,
     ssh_key: str | None = None,
     dry_run: bool = False,
+    skip_preflight: bool = False,
+    min_free_disk_gb: float = 0.0,
+    require_cuda: bool = False,
+    min_vram_gb: float = 0.0,
+    runner: Any = subprocess.run,
 ) -> dict[str, Any]:
     source = local_root / "data" / "processed"
     if not source.is_dir():
         raise SyncError(f"processed data directory does not exist: {source}")
+    if not ssh_target:
+        raise SyncError("an SSH target is required for upload")
+    preflight: dict[str, Any] | None = None
+    if not skip_preflight:
+        preflight = preflight_remote(
+            ssh_target,
+            _remote_path(remote_root, "data/processed"),
+            ssh_port=ssh_port,
+            ssh_key=ssh_key,
+            min_free_disk_gb=min_free_disk_gb,
+            require_cuda=require_cuda,
+            min_vram_gb=min_vram_gb,
+            runner=runner,
+        )
     manifest = create_sha256_manifest(source)
     verify_sha256_manifest(source, manifest)
     run_rsync(
@@ -229,6 +413,7 @@ def upload_processed(
         "destination": f"{ssh_target}:{_remote_path(remote_root, 'data/processed')}",
         "manifest": str(manifest),
         "dry_run": dry_run,
+        "preflight": preflight,
     }
 
 
@@ -242,12 +427,27 @@ def download_artifacts(
     ssh_key: str | None = None,
     dry_run: bool = False,
     require_manifests: bool = True,
+    skip_preflight: bool = False,
+    min_free_disk_gb: float = 0.0,
+    runner: Any = subprocess.run,
 ) -> dict[str, Any]:
     unknown = sorted(set(components) - set(COMPONENTS))
     if unknown:
         raise SyncError(f"unknown components: {', '.join(unknown)}")
     if not components:
         raise SyncError("at least one download component is required")
+    if not ssh_target:
+        raise SyncError("an SSH target is required for download")
+    preflight: dict[str, Any] | None = None
+    if not skip_preflight:
+        preflight = preflight_remote(
+            ssh_target,
+            remote_root,
+            ssh_port=ssh_port,
+            ssh_key=ssh_key,
+            min_free_disk_gb=min_free_disk_gb,
+            runner=runner,
+        )
 
     manifest_root = local_root / "manifests"
     reports: dict[str, Any] = {}
@@ -294,6 +494,7 @@ def download_artifacts(
         "ssh_target": ssh_target,
         "remote_root": remote_root,
         "dry_run": dry_run,
+        "preflight": preflight,
         "reports": reports,
     }
 
@@ -313,6 +514,14 @@ def _add_connection_options(parser: argparse.ArgumentParser, *, require_host: bo
     parser.add_argument("--ssh-port", type=int, default=None)
     parser.add_argument("--ssh-key", default=os.environ.get("LIGHTNING_SSH_KEY"))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip connectivity/disk/GPU preflight (unsafe; not recommended).",
+    )
+    parser.add_argument("--min-free-disk-gb", type=float, default=0.0)
+    parser.add_argument("--require-cuda", action="store_true")
+    parser.add_argument("--min-vram-gb", type=float, default=0.0)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -361,6 +570,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ssh_port=args.ssh_port,
                 ssh_key=args.ssh_key,
                 dry_run=args.dry_run,
+                skip_preflight=args.skip_preflight,
+                min_free_disk_gb=args.min_free_disk_gb,
+                require_cuda=args.require_cuda,
+                min_vram_gb=args.min_vram_gb,
             )
         elif args.command == "download":
             report = download_artifacts(
@@ -372,6 +585,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ssh_key=args.ssh_key,
                 dry_run=args.dry_run,
                 require_manifests=not args.allow_missing_manifests,
+                skip_preflight=args.skip_preflight,
+                min_free_disk_gb=args.min_free_disk_gb,
             )
         elif args.command == "verify":
             report = verify_sha256_manifest(args.root, args.manifest)

@@ -14,6 +14,7 @@ class SourceKind(StrEnum):
     REAL_MALICIOUS = "real_malicious"
     REAL_BENIGN = "real_benign"
     SCRIPT_BENIGN = "script_benign"
+    REAL_HISTORY_POOL = "real_history_pool"
     LLM_VARIANT = "llm_variant"
     HARD_NEGATIVE = "hard_negative"
 

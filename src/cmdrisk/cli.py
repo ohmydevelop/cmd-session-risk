@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Annotated, Any, TextIO
 
 import typer
 
@@ -16,7 +16,7 @@ from cmdrisk.runtime import (
     ScoringError,
     SessionScorer,
 )
-from cmdrisk.schema import SequenceScore, SessionRecord
+from cmdrisk.schema import ScoreEntry, SequenceScore, SessionRecord
 
 EXIT_OK = 0
 EXIT_INPUT = 2
@@ -44,9 +44,25 @@ def _error(message: str, *, code: str, exit_code: int) -> None:
     raise typer.Exit(exit_code)
 
 
-def _load_scorer(artifact_dir: str | Path) -> SessionScorer:
+def _load_scorer(
+    artifact_dir: str | Path,
+    *,
+    providers: Sequence[str] | None = None,
+    intra_op_num_threads: int | None = None,
+) -> SessionScorer:
+    """Load an artifact, optionally pinning ONNX Runtime execution providers.
+
+    ``providers`` is an ordered priority list, e.g. ``["CUDAExecutionProvider",
+    "CPUExecutionProvider"]`` to prefer a GPU and fall back to CPU.
+    """
+
+    kwargs: dict[str, Any] = {}
+    if providers:
+        kwargs["providers"] = list(providers)
+    if intra_op_num_threads is not None:
+        kwargs["intra_op_num_threads"] = int(intra_op_num_threads)
     try:
-        return SessionScorer.from_onnx(artifact_dir)
+        return SessionScorer.from_onnx(artifact_dir, **kwargs)
     except ArtifactLoadError as exc:
         _error(str(exc), code="artifact_load_error", exit_code=EXIT_ARTIFACT)
     except Exception as exc:
@@ -109,6 +125,41 @@ def _open_output(path: str) -> tuple[TextIO, bool]:
         raise ValueError(f"cannot open output {path}: {exc}") from exc
 
 
+MAX_BATCH_SPLIT_DEPTH = 8
+
+
+def _score_batches(
+    scorer: SessionScorer,
+    batches: list[list[tuple[int, int, list[tuple[str, float | None]], int]]],
+    entries: dict[tuple[int, int], ScoreEntry],
+    *,
+    depth: int = 0,
+) -> None:
+    """Score pre-built batches, halving any batch the runtime cannot fit.
+
+    Long prefixes make padded batches expensive, and the memory a batch needs
+    depends on the shape of the widest row rather than on a fixed token count.
+    Rather than pinning the runner to one hardware profile, a batch that fails
+    to execute (typically an ONNX Runtime allocation error) is split and
+    retried until it fits.  A single row that still fails propagates, so real
+    inference errors are never silently swallowed.
+    """
+
+    for batch in batches:
+        try:
+            scored = scorer.score_batch([item[2] for item in batch])
+        except (ValueError, InferenceError, ScoringError):
+            if len(batch) <= 1 or depth >= MAX_BATCH_SPLIT_DEPTH:
+                raise
+            middle = len(batch) // 2
+            _score_batches(
+                scorer, [batch[:middle], batch[middle:]], entries, depth=depth + 1
+            )
+            continue
+        for item, entry in zip(batch, scored, strict=True):
+            entries[(item[0], item[1])] = entry
+
+
 @app.command("score")
 def score(
     artifact_dir: str = typer.Option(..., "--artifact-dir", help="ONNX artifact directory."),
@@ -119,11 +170,44 @@ def score(
         "--flat",
         help="Emit one prefix score per line instead of one session result.",
     ),
+    batch_size: int = typer.Option(
+        1,
+        "--batch-size",
+        min=1,
+        help="Score this many prefixes per ONNX Runtime call (dynamic batching).",
+    ),
+    provider: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--provider",
+            help="ONNX Runtime execution provider; repeat to build a priority list.",
+        ),
+    ] = None,
+    max_batch_tokens: int = typer.Option(
+        32768,
+        "--max-batch-tokens",
+        min=1,
+        help="Upper bound on padded tokens (rows x width) per batched ONNX call.",
+    ),
+    intra_op_threads: Annotated[
+        int | None,
+        typer.Option(
+            "--intra-op-threads",
+            min=1,
+            help=(
+                "Pin the ONNX Runtime intra-op thread pool.  Default (unset) lets "
+                "ORT size it from the physical core count, which oversubscribes "
+                "the machine when several scoring jobs run concurrently."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Score every prefix from a batch of JSONL sessions."""
 
     try:
-        scorer = _load_scorer(artifact_dir)
+        scorer = _load_scorer(
+            artifact_dir, providers=provider, intra_op_num_threads=intra_op_threads
+        )
     except typer.Exit:
         raise
 
@@ -133,6 +217,75 @@ def score(
     except ValueError as exc:
         _error(str(exc), code="input_error", exit_code=EXIT_INPUT)
 
+    def emit(result: SequenceScore) -> None:
+        if flat:
+            for entry in result.entries:
+                sink.write(
+                    _json_line(
+                        {
+                            **entry.model_dump(mode="json"),
+                            "session_id": result.session_id,
+                            "peak_probability": result.peak_probability,
+                            "model_version": result.model_version,
+                        }
+                    )
+                )
+                sink.write("\n")
+        else:
+            sink.write(_json_line(result))
+            sink.write("\n")
+        sink.flush()
+
+    def score_streaming(session_id: str, commands: list[tuple[str, float | None]]) -> None:
+        state = scorer.start_session(session_id)
+        for cmd, dt in commands:
+            state.update(cmd, dt)
+        emit(state.result())
+
+    def score_batched(pending: list[tuple[str, list[tuple[str, float | None]]]]) -> None:
+        # Prefixes of one session are nested, so their token widths differ by
+        # orders of magnitude.  Sorting by width before batching keeps padding
+        # waste (and therefore GPU memory) low while results stay in input order.
+        items: list[tuple[int, int, list[tuple[str, float | None]], int]] = []
+        for session_index, (_session_id, commands) in enumerate(pending):
+            for command_index in range(len(commands)):
+                prefix = commands[: command_index + 1]
+                items.append((session_index, command_index, prefix, scorer.token_count(prefix)))
+        items.sort(key=lambda item: -item[3])
+
+        batches: list[list[tuple[int, int, list[tuple[str, float | None]], int]]] = []
+        current: list[tuple[int, int, list[tuple[str, float | None]], int]] = []
+        width = 0
+        for item in items:
+            item_width = item[3]
+            next_width = max(width, item_width)
+            if current and (
+                len(current) >= batch_size
+                or next_width * (len(current) + 1) > max_batch_tokens
+            ):
+                batches.append(current)
+                current, width = [], 0
+                next_width = item_width
+            current.append(item)
+            width = next_width
+        if current:
+            batches.append(current)
+
+        entries: dict[tuple[int, int], ScoreEntry] = {}
+        try:
+            _score_batches(scorer, batches, entries)
+        except (ValueError, InferenceError, ScoringError) as exc:
+            _error(str(exc), code="inference_error", exit_code=EXIT_INFERENCE)
+
+        for session_index, (session_id, commands) in enumerate(pending):
+            emit(
+                scorer.sequence_score(
+                    session_id,
+                    [entries[(session_index, index)] for index in range(len(commands))],
+                )
+            )
+
+    pending: list[tuple[str, list[tuple[str, float | None]]]] = []
     try:
         for line_number, raw_line in enumerate(source, start=1):
             if not raw_line.strip():
@@ -143,31 +296,20 @@ def score(
             except (json.JSONDecodeError, ValueError) as exc:
                 _error(str(exc), code="invalid_input", exit_code=EXIT_INPUT)
 
-            state = scorer.start_session(session_id)
+            if batch_size > 1:
+                pending.append((session_id, commands))
+                if len(pending) >= batch_size:
+                    score_batched(pending)
+                    pending = []
+                continue
+
             try:
-                for cmd, dt in commands:
-                    state.update(cmd, dt)
-                result = state.result()
+                score_streaming(session_id, commands)
             except (ValueError, InferenceError, ScoringError) as exc:
                 _error(str(exc), code="inference_error", exit_code=EXIT_INFERENCE)
 
-            if flat:
-                for entry in result.entries:
-                    sink.write(
-                        _json_line(
-                            {
-                                **entry.model_dump(mode="json"),
-                                "session_id": result.session_id,
-                                "peak_probability": result.peak_probability,
-                                "model_version": result.model_version,
-                            }
-                        )
-                    )
-                    sink.write("\n")
-            else:
-                sink.write(_json_line(result))
-                sink.write("\n")
-            sink.flush()
+        if batch_size > 1 and pending:
+            score_batched(pending)
     finally:
         if close_source:
             source.close()
@@ -198,8 +340,13 @@ def run_stream(
             continue
         try:
             cmd, dt = _parse_stream_line(raw_line, line_number=line_number)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        try:
             entry = state.update(cmd, dt)
-        except (ValueError, InferenceError, ScoringError) as exc:
+        except (InferenceError, ScoringError):
+            raise
+        except ValueError as exc:
             raise ValueError(str(exc)) from exc
         payload = {
             **entry.model_dump(mode="json"),

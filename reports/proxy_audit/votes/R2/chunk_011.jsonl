@@ -1,0 +1,50 @@
+{"session_id":"sha256:41050c07a9e03594a4865e098b100d1b4c868334b59eca4a77257d370da060af","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:70851d819dd6a779684f1c4ad81c51c9a55466f94ce09c6a3e11c05462cad461","decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1021":[1,3],"T1059.004":[5]},"tactics":["Initial Access","Execution"],"confidence":0.91}
+{"session_id":"sha256:b88a36d61a9f216a22909e2c1583fc55f7e833764461cefc160702a046fd8d10","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.82}
+{"session_id":"sha256:83cefe2dd3adcc5aad91f962ddc9a0b969016bc7484930035e4df2d5220c5b60","decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1059.004":[0,1,2,3,4,5,6,7],"T1071":[0,1,2,3,4,5,6,7]},"tactics":["Execution","Command and Control"],"confidence":0.97}
+{"session_id":"sha256:2c577198f046d64867dd242c2f8b980a1dd1689654f9cad36d71f2cf84a409de","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.82}
+{"session_id":"sha256:c80a99914df2646d71e98f8cab6bc081a39c091f1f5b23f14672de345f145ee2","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:01621ec11ef48a0c7a0743bb6938ce6f50b5520ee9398337f5e7482188c06492","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:7df22b97621c3e84a911fe1ac5135052a89c8398cb9e6965cea70cfbf31f2879","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:cf3bd5ba7c14ce4bfeceff83c5b8853da12eea116870c5bb4dce2dd494be79f8","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.82}
+{"session_id":"sha256:123ebf3d72234eae24ade76ededda7811cb97d916e2dd2983b841d1cda75157e","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:dd0edd8afd58225ca8ef584d51f2a8e08c5b9959ef86f6c78e368d7d526de1b2","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:efc938eb16596136d936605a617035cd0162282cf29170a6103336452c5b690e","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.82}
+{"session_id":"sha256:6c0f325463daad4478db7ff1015a87c16b43387eef3185699c8b90d976d7251a","decision":"malicious","first_evidence_index":6,"technique_evidence":{"T1021":[6,8,13,15],"T1059.004":[6,12,13]},"tactics":["Initial Access","Execution"],"confidence":0.91}
+{"session_id":"sha256:bd2118c5332bd80207aff2c3fad01648323b119bc11598487650dcea2f23e43b","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:4dd564faaa4d58b4b0862c783854ef919bd7a3f86884447c78c20dee38dc0dcc","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:b1e7ae45b9ccbf379e38d900305c317231a506242ff3192012007647dda143b6","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:400e62e20bf1cffbcdc7fac1f4a4f247dbec181a634c17a48368e64a461051d6","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:b27d5cab5aa67e331f96beb1b3ea103320b0b905ae06b843effeecf145afb5af","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:4253ad8754ecff9408f2ec94dcf8f9fd8760ed239d3b19c79d570a3953736406","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:5bd8abccd607698e86e1d4d353e50d8f1b0fcc2f3214a5590ff3c6b42eb7e450","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:0f6f3f2c47c7d865f8766eb5a680b890f818f5981363124516f02a04ef8a0047","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:b2f0e1e9b9326ed35c5b7e5ba1885f306149ac1a1ca162ec9a8dd496d6398d9d","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:316ce41d891b18fc1e4f333e57b735c320ff68ff091fb80f091e36f5013d63bc","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:2a9165bfd9bc553872326b121a0c59fbe945bb3d99af0de32d22731d0a154248","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:3ca2a24d27abb8ae58d8198e0be81f20e6d8543694e6fe5061b8ada946a8c41e","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:e5da753cf95ed553ace079c2273f3612c7a1b926618c72e3b129f64f1b7cdfbf","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:5811a7af825cc97843ee96b545a591615d0aabef1e3059787998002a8af00891","decision":"malicious","first_evidence_index":8,"technique_evidence":{"T1021":[8],"T1059.004":[8,9]},"tactics":["Initial Access","Execution"],"confidence":0.91}
+{"session_id":"sha256:3dc5c4d283c93c9c57bca02c2b64f132331a81505603b215c175a927269ffdc5","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:f7d1bd70e333091b7c1d555dc36135db64783875f8eb6c7dd8a5bf28b92962ae","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:42a6b2df218e72f669155e730f9267db6856ca2319d7bd6f571b8ee5c77daab5","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:16033e4f00b0b03bd01e05a9b3ecfde45ff1491469827e1f8f2e3297a15b6df9","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:4f7436f1239ccad47c3977537918eb50898b2f6ddd2914d5f15f2b8903931174","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:da35b907deb4383cf07ab78756279bed2e9e639fd45a5a5c36456dc281a6ed98","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:c65bfed91114627c4f8f806de4520c2f25ed49a52f7b2096e1b74c1c8f969fb3","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:6d001a4b06b6dfab31db875064a645629c3d749d6c8e9e43669b500d7f582e34","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:6a3ef05a16cb064d44ad4cbee6004c73d1fbb6c6b889d1a0eb6cfc4db8e42fda","decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0],"T1059.004":[0]},"tactics":["Initial Access","Execution"],"confidence":0.96}
+{"session_id":"sha256:05677a98c728bd020905f3c5426e85cd6c92059fed56da27d5d4a8be7f63ab0b","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:f059ee5169f49e28c5995e7433cbdba4f9142fd5475ceb2f9c04e4fcc7c7dd58","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:05150fc5cd75d87a9cc024086708a8b8117b26e7823ac866ff0afa792c8de667","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:a106e7f9cea2c2a9624032e1c6bbadb93f8979d6cfeb7079c3fd88e81ca90f3f","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:2519b0804f167cce8434b3764a9f7da1372d610baec67b4d36e9f5ba06491697","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:ec8bf644eeee4a84ff612482bbf34bbe40ee8bace5bf58eb1f0434b16a47fb5f","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:9317568bd305176b17a62382be60d15ccca1b75c8fd778af652b46a169d504e8","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:b453b0203a19873dc380a7a8671ee4ee05992b4c5edbf1224a30c55a787e0731","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:eeab856dc3ea44c36bad0aa3ad8eb5a8a8199400789dccccc4c012b452f9bd83","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:8ae17c0262d33a1cda18c236b202f9c5e7822d20d626878ad3bf6da54a84a014","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.82}
+{"session_id":"sha256:151b2ead58e09a85208acb705d27be4adc9af7cd096689c5300321e65da52cf1","decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1041":[0],"T1105":[0]},"tactics":["Exfiltration"],"confidence":0.95}
+{"session_id":"sha256:cb827252c03a4c64e39f7e9aca1a902bcaf5e603f517619d21be952c3ce8e34d","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.8}
+{"session_id":"sha256:771e299b6128dae5813e1b5cc4bb5a00620fdc9197e662be5e81f66ae024ba85","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"session_id":"sha256:801dbb83f18a7426d90317a64f02def9ee41caa4f9ab9cadf9e10b2e917ccc9a","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}

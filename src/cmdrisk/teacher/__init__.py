@@ -2,6 +2,7 @@
 
 from cmdrisk.teacher.audit import (
     AuditCase,
+    ProxyAuditMetrics,
     ProxyAuditor,
     ProxyAuditReport,
     ProxyAuditResult,
@@ -62,6 +63,7 @@ __all__ = [
     "PromptError",
     "PromptStore",
     "PromptedModel",
+    "ProxyAuditMetrics",
     "ProxyAuditReport",
     "ProxyAuditResult",
     "ProxyAuditor",

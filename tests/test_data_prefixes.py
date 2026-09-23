@@ -14,7 +14,10 @@ def test_prefix_fixture_covers_benign_malicious_and_long_sessions() -> None:
 
     assert [len(session.commands) for session in sessions] == [3, 5, 12]
     assert len(prefixes) == 20
-    assert all(prefix.command_count == len(session.commands) for prefix, session in zip(prefixes[:3], [sessions[0]] * 3, strict=True))
+    assert all(
+        prefix.command_count == len(session.commands)
+        for prefix, session in zip(prefixes[:3], [sessions[0]] * 3, strict=True)
+    )
 
 
 def test_malicious_prefix_labels_follow_first_evidence_and_technique_evidence() -> None:
@@ -27,6 +30,11 @@ def test_malicious_prefix_labels_follow_first_evidence_and_technique_evidence() 
     assert prefixes[2].label.technique_evidence == {"T1105": [2]}
     assert prefixes[3].label.technique_evidence == {"T1105": [2], "T1222": [3]}
     assert prefixes[4].label.techniques == ["T1105", "T1222", "T1059.004"]
+    assert [technique.split(".", 1)[0] for technique in prefixes[4].label.techniques] == [
+        "T1105",
+        "T1222",
+        "T1059",
+    ]
 
 
 def test_benign_prefixes_never_acquire_malicious_evidence() -> None:

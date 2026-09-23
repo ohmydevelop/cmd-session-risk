@@ -1,0 +1,19 @@
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1021":[1]},"tactics":["Execution","Lateral Movement"],"confidence":0.86}
+{"decision":"malicious","first_evidence_index":12,"technique_evidence":{"T1110":[12,13,14,15]},"tactics":["Credential Access"],"confidence":0.78}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.68}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.72}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1046":[0,1]},"tactics":["Discovery","Execution"],"confidence":0.77}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0,2,3]},"tactics":["Execution","Lateral Movement"],"confidence":0.86}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0,1,2,3]},"tactics":["Execution","Lateral Movement"],"confidence":0.86}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.7}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.65}
+{"decision":"malicious","first_evidence_index":5,"technique_evidence":{"T1046":[5]},"tactics":["Discovery","Execution"],"confidence":0.7}
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1021":[1,3,4,5,7]},"tactics":["Execution","Lateral Movement"],"confidence":0.91}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1105":[0],"T1021":[0]},"tactics":["Command and Control","Execution","Lateral Movement"],"confidence":0.82}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.72}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0]},"tactics":["Execution","Lateral Movement"],"confidence":0.84}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.6}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.62}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.65}

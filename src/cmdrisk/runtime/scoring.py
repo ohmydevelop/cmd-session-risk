@@ -11,6 +11,10 @@ from typing import Any
 
 import numpy as np
 
+from cmdrisk.artifact_manifest import (
+    ArtifactManifestError,
+    verify_export_manifest,
+)
 from cmdrisk.schema import ScoreEntry, SequenceScore, TacticScore, TechniqueScore
 from cmdrisk.taxonomy import (
     TACTIC_BY_ID,
@@ -318,12 +322,28 @@ class SessionScorer:
         providers: Sequence[str] | None = None,
         intra_op_num_threads: int | None = None,
         inter_op_num_threads: int | None = None,
+        verify_manifest: bool = True,
+        manifest_path: str | Path | None = None,
     ) -> SessionScorer:
-        """Load ``model.onnx`` and its adjacent tokenizer and metadata files."""
+        """Load ``model.onnx`` and its adjacent tokenizer and metadata files.
+
+        When ``verify_manifest`` is true (the default) the artifact directory
+        must contain a self-describing ``export_manifest.json`` whose recorded
+        sizes and SHA256 digests match every declared file.  Verification is
+        fail-closed and happens before any model or tokenizer bytes are read.
+        Callers that construct fakes or legacy bundles can disable it, but
+        production deployments should never do so.
+        """
 
         root = Path(artifact_dir).expanduser().resolve()
         if not root.is_dir():
             raise ArtifactLoadError(f"artifact directory does not exist: {root}")
+
+        if verify_manifest:
+            try:
+                verify_export_manifest(root, manifest_path)
+            except ArtifactManifestError as exc:
+                raise ArtifactLoadError(f"artifact manifest verification failed: {exc}") from exc
 
         runtime_path = _first_existing(
             root, ("runtime_config.json", "runtime.json", "config.json"), required=False
@@ -440,6 +460,20 @@ class SessionScorer:
                 raise ArtifactLoadError(
                     "onnxruntime is required; install the 'train' extra"
                 ) from exc
+            requested = [
+                str(item) for item in (providers or ("CPUExecutionProvider",))
+            ]
+            if any("CUDA" in item for item in requested):
+                # ONNX Runtime ships CUDA/cuDNN under separate ``nvidia-*``
+                # wheels.  Preloading lets a GPU session start without the
+                # caller having to export LD_LIBRARY_PATH by hand; it is a
+                # best-effort convenience and never a hard requirement.
+                preload = getattr(ort, "preload_dlls", None)
+                if callable(preload):
+                    try:
+                        preload()
+                    except Exception:  # pragma: no cover - optional accelerator
+                        pass
             options = ort.SessionOptions()
             if intra_op_num_threads is not None:
                 options.intra_op_num_threads = int(intra_op_num_threads)
@@ -449,7 +483,7 @@ class SessionScorer:
                 onnx_session = ort.InferenceSession(
                     str(model_path),
                     sess_options=options,
-                    providers=list(providers or ("CPUExecutionProvider",)),
+                    providers=list(requested),
                 )
             except Exception as exc:
                 raise ArtifactLoadError(f"cannot create ONNX Runtime session: {exc}") from exc
@@ -517,6 +551,15 @@ class SessionScorer:
         self._sessions[session_id] = state
         return state
 
+    def sequence_score(
+        self, session_id: str, entries: Sequence[ScoreEntry]
+    ) -> SequenceScore:
+        """Assemble a :class:`SequenceScore` from precomputed prefix entries."""
+
+        state = SessionState(scorer=self, session_id=session_id)
+        state.absorb(entries)
+        return state.result()
+
     def score_commands(
         self, commands: Sequence[tuple[str, float | None]] | Sequence[object]
     ) -> ScoreEntry:
@@ -572,33 +615,125 @@ class SessionScorer:
 
     def _infer_prefix(self, commands: Sequence[tuple[str, float | None]]) -> ScoreEntry:
         feed = self._encode(commands)
+        logits = self._extract_logits(self._run_onnx(feed))
+        malicious_values = np.asarray(logits[0], dtype=np.float64).reshape(-1)
+        return self._entry_from_logits(
+            malicious_values,
+            logits[1],
+            logits[2],
+            command_index=len(commands) - 1,
+        )
+
+    def token_count(self, prefix: Sequence[tuple[str, float | None]]) -> int:
+        """Return the token width a prefix encodes to after truncation.
+
+        Callers use this to bucket similar-length prefixes together and to keep
+        padded batches inside a memory budget.
+        """
+
+        return int(self._encode(prefix)["input_ids"].shape[1])
+
+    def score_batch(
+        self, prefixes: Sequence[Sequence[tuple[str, float | None]]]
+    ) -> list[ScoreEntry]:
+        """Score many complete prefixes with a single padded ONNX Runtime call.
+
+        The exported graph declares a dynamic batch axis, so every prefix in a
+        batch can be padded to the longest sequence and evaluated together.
+        Logits are computed per row exactly as :meth:`score_commands` does, so
+        results are identical to scoring the prefixes one at a time while
+        removing the per-prefix dispatch overhead (which dominates CPU-only
+        streaming and is what makes GPU execution providers worth using).
+        """
+
+        if not prefixes:
+            return []
+        feeds = [self._encode(prefix) for prefix in prefixes]
+        width = max(int(feed["input_ids"].shape[1]) for feed in feeds)
+        rows = len(feeds)
+        pad_id = int(getattr(self._tokenizer, "pad_token_id", 0))
+        input_ids = np.full((rows, width), pad_id, dtype=np.int64)
+        attention_mask = np.zeros((rows, width), dtype=np.int64)
+        for index, feed in enumerate(feeds):
+            length = int(feed["input_ids"].shape[1])
+            input_ids[index, :length] = feed["input_ids"][0]
+            attention_mask[index, :length] = feed["attention_mask"][0]
+        token_type_ids = np.zeros_like(input_ids)
+
+        available = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+        names = self._input_names or tuple(available)
+        feed = {name: available[name] for name in names if name in available}
+        if "input_ids" not in feed:
+            raise InferenceError("ONNX model input names do not include input_ids")
+
+        logits = self._extract_logits(self._run_onnx(feed))
+        malicious_rows = np.asarray(logits[0], dtype=np.float64).reshape(rows, -1)
+        tactic_rows = self._as_row_matrix(logits[1], rows)
+        technique_rows = self._as_row_matrix(logits[2], rows)
+
+        entries: list[ScoreEntry] = []
+        for index, commands in enumerate(prefixes):
+            entries.append(
+                self._entry_from_logits(
+                    malicious_rows[index],
+                    None if tactic_rows is None else tactic_rows[index],
+                    None if technique_rows is None else technique_rows[index],
+                    command_index=len(commands) - 1,
+                )
+            )
+        return entries
+
+    def _run_onnx(self, feed: dict[str, np.ndarray]) -> Any:
         try:
-            raw_outputs = self._onnx_session.run(None, feed)
+            return self._onnx_session.run(None, feed)
         except Exception as exc:
             raise InferenceError(f"ONNX inference failed: {exc}") from exc
 
+    def _extract_logits(self, raw_outputs: Any) -> tuple[Any, Any, Any]:
         outputs = self._named_outputs(raw_outputs)
         malicious_logits = self._select_output(
             outputs, "malicious", ("malicious", "malicious_logits", "logits")
         )
         if malicious_logits is None:
             raise InferenceError("ONNX output does not contain malicious logits")
-
-        malicious_values = np.asarray(malicious_logits, dtype=np.float64).reshape(-1)
-        if malicious_values.size < 1:
-            raise InferenceError("malicious logits are empty")
-        scaled_malicious = malicious_values / self.malicious_temperature
-        if malicious_values.size == 2 and self._output_names.get("malicious_output") == "softmax":
-            malicious_probability = float(_softmax(scaled_malicious)[1])
-        else:
-            malicious_probability = float(_sigmoid(scaled_malicious[:1])[0])
-
         tactic_logits = self._select_output(
             outputs, "tactics", ("tactics", "tactics_logits", "tactic_logits")
         )
         technique_logits = self._select_output(
             outputs, "techniques", ("techniques", "techniques_logits", "technique_logits")
         )
+        return malicious_logits, tactic_logits, technique_logits
+
+    @staticmethod
+    def _as_row_matrix(logits: Any, rows: int) -> np.ndarray | None:
+        if logits is None:
+            return None
+        values = np.asarray(logits, dtype=np.float64)
+        if values.ndim == 1:
+            values = values.reshape(rows, -1)
+        return values.reshape(rows, -1)
+
+    def _malicious_probability(self, values: np.ndarray) -> float:
+        if values.size < 1:
+            raise InferenceError("malicious logits are empty")
+        scaled_malicious = values / self.malicious_temperature
+        if values.size == 2 and self._output_names.get("malicious_output") == "softmax":
+            return float(_softmax(scaled_malicious)[1])
+        return float(_sigmoid(scaled_malicious[:1])[0])
+
+    def _entry_from_logits(
+        self,
+        malicious_values: np.ndarray,
+        tactic_logits: Any,
+        technique_logits: Any,
+        *,
+        command_index: int,
+    ) -> ScoreEntry:
+        malicious_probability = self._malicious_probability(malicious_values)
         tactic_scores = self._label_scores(
             tactic_logits,
             self._tactics,
@@ -619,7 +754,7 @@ class SessionScorer:
         severity = stage_severity(tactic_ids)
         risk_score = min(1.0, max(0.0, malicious_probability * severity))
         return ScoreEntry(
-            command_index=len(commands) - 1,
+            command_index=command_index,
             malicious_probability=malicious_probability,
             risk_score=risk_score,
             attack_stage=stage,
@@ -718,15 +853,28 @@ class SessionState:
             raise ValueError("cmd must contain non-whitespace characters")
         dt_bucket(dt)
         self._commands.append((cmd, dt))
-        entry = self._scorer.score_commands(self._commands)
-        self._peak_probability = max(self._peak_probability, entry.malicious_probability)
-        self._alerted = self._alerted or entry.alert
-        if entry.alert != self._alerted:
-            entry = entry.model_copy(update={"alert": self._alerted})
-        elif self._alerted and not entry.alert:
-            entry = entry.model_copy(update={"alert": True})
+        self._record(self._scorer.score_commands(self._commands))
+        return self._entries[-1]
+
+    def absorb(self, entries: Sequence[ScoreEntry]) -> None:
+        """Append already-computed prefix entries in order.
+
+        Batched inference computes the same per-prefix scores as the streaming
+        path, so the accumulated state only has to re-apply the alert latching
+        rule: once a session has alerted, later entries keep ``alert`` set.
+        """
+
+        for entry in entries:
+            self._record(entry)
+
+    def _record(self, entry: ScoreEntry) -> None:
+        peak = max(self._peak_probability, entry.malicious_probability)
+        alert = self._alerted or entry.alert
+        if entry.alert != alert:
+            entry = entry.model_copy(update={"alert": alert})
+        self._peak_probability = peak
+        self._alerted = alert
         self._entries.append(entry)
-        return entry
 
     def result(self) -> SequenceScore:
         """Return the stable scoring result for all observed prefixes."""

@@ -1,0 +1,10 @@
+start 2026-09-20T04:21:54Z
+2026-09-20 04:51:35.053266312 [E:onnxruntime:, sequential_executor.cc:572 ExecuteKernel] Non-zero status code returned while running FusedMatMul node. Name:'node_matmul_2/MatMulScaleFusion/' Status Message: /onnxruntime_src/onnxruntime/core/framework/bfc_arena.cc:359 void* onnxruntime::BFCArena::AllocateRawInternal(size_t, bool, onnxruntime::Stream*) Failed to allocate memory for requested buffer of size 5316803072
+
+2026-09-20 04:51:39.008533140 [E:onnxruntime:, sequential_executor.cc:572 ExecuteKernel] Non-zero status code returned while running FusedMatMul node. Name:'node_matmul_2/MatMulScaleFusion/' Status Message: /onnxruntime_src/onnxruntime/core/framework/bfc_arena.cc:359 void* onnxruntime::BFCArena::AllocateRawInternal(size_t, bool, onnxruntime::Stream*) Failed to allocate memory for requested buffer of size 5191806464
+
+2026-09-20 04:51:42.813960454 [E:onnxruntime:, sequential_executor.cc:572 ExecuteKernel] Non-zero status code returned while running FusedMatMul node. Name:'node_matmul_2/MatMulScaleFusion/' Status Message: /onnxruntime_src/onnxruntime/core/framework/bfc_arena.cc:359 void* onnxruntime::BFCArena::AllocateRawInternal(size_t, bool, onnxruntime::Stream*) Failed to allocate memory for requested buffer of size 4753859584
+
+2026-09-20 04:51:46.303920950 [E:onnxruntime:, sequential_executor.cc:572 ExecuteKernel] Non-zero status code returned while running FusedMatMul node. Name:'node_matmul_2/MatMulScaleFusion/' Status Message: /onnxruntime_src/onnxruntime/core/framework/bfc_arena.cc:359 void* onnxruntime::BFCArena::AllocateRawInternal(size_t, bool, onnxruntime::Stream*) Failed to allocate memory for requested buffer of size 4323602176
+
+done 2026-09-20T04:53:38Z

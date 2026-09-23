@@ -1,0 +1,94 @@
+{
+  "blind_payload_fields": [
+    "commands",
+    "session_id"
+  ],
+  "cases_sha256": "bbaa00859f72020a7c00bcf63450dbe0428521be7cb5b4c5ff78ee679cc5968c",
+  "contract": "reports/proxy_audit/REVIEWER_CONTRACT.md",
+  "contract_sha256": "274d6d0db070f4473402c634f05b5031b7d6e54705f3dfe0db70493751b870f5",
+  "prediction_source": "reports/proxy_audit/predictions.jsonl",
+  "reviewer_kind": "external agent reviewers replayed through ProxyAuditor",
+  "reviewers": [
+    {
+      "cases_without_vote": 0,
+      "chunks": [
+        "chunk_000.jsonl",
+        "chunk_001.jsonl",
+        "chunk_002.jsonl",
+        "chunk_003.jsonl",
+        "chunk_004.jsonl",
+        "chunk_005.jsonl",
+        "chunk_006.jsonl",
+        "chunk_007.jsonl",
+        "chunk_008.jsonl",
+        "chunk_009.jsonl",
+        "chunk_010.jsonl",
+        "chunk_011.jsonl",
+        "chunk_012.jsonl"
+      ],
+      "decisions": {
+        "benign": 102,
+        "malicious": 465,
+        "uncertain": 40
+      },
+      "label": "conservative-incident-responder",
+      "reviewer": "R1",
+      "votes": 607,
+      "votes_sha256": "ef0ea3c969489cc987a14b5924c466b69397bf65ff4f24d6b4100cfc180e8eef"
+    },
+    {
+      "cases_without_vote": 0,
+      "chunks": [
+        "chunk_000.jsonl",
+        "chunk_001.jsonl",
+        "chunk_002.jsonl",
+        "chunk_003.jsonl",
+        "chunk_004.jsonl",
+        "chunk_005.jsonl",
+        "chunk_006.jsonl",
+        "chunk_007.jsonl",
+        "chunk_008.jsonl",
+        "chunk_009.jsonl",
+        "chunk_010.jsonl",
+        "chunk_011.jsonl",
+        "chunk_012.jsonl"
+      ],
+      "decisions": {
+        "benign": 122,
+        "malicious": 414,
+        "uncertain": 71
+      },
+      "label": "soc-operations-engineer",
+      "reviewer": "R2",
+      "votes": 607,
+      "votes_sha256": "48003c69c769f7f730514794ca695d1d5379e18842296e3a4c49b27bbfe36c09"
+    },
+    {
+      "cases_without_vote": 0,
+      "chunks": [
+        "chunk_000.jsonl",
+        "chunk_001.jsonl",
+        "chunk_002.jsonl",
+        "chunk_003.jsonl",
+        "chunk_004.jsonl",
+        "chunk_005.jsonl",
+        "chunk_006.jsonl",
+        "chunk_007.jsonl",
+        "chunk_008.jsonl",
+        "chunk_009.jsonl",
+        "chunk_010.jsonl",
+        "chunk_011.jsonl",
+        "chunk_012.jsonl"
+      ],
+      "decisions": {
+        "benign": 140,
+        "malicious": 445,
+        "uncertain": 22
+      },
+      "label": "mitre-attack-chain-analyst",
+      "reviewer": "R3",
+      "votes": 607,
+      "votes_sha256": "c60de0963a545a794b0d6ede60720cdf5994036854016e15376df08f630cee4f"
+    }
+  ]
+}

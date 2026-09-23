@@ -9,7 +9,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, ConfigDict
 
 from cmdrisk.schema import Label, LabelQuality, SessionRecord
-from cmdrisk.taxonomy import normalize_tactic, normalize_technique, tactics_for_techniques
+from cmdrisk.taxonomy import normalize_technique, tactics_for_techniques
 from cmdrisk.teacher.responses import TeacherLabelResponse
 
 
@@ -34,6 +34,9 @@ class ConsensusLabeler:
     A 2/2 agreement is high consensus. A C tie-break is accepted only when all
     three models agree on maliciousness and their first-evidence indices span at
     most one command. Any 2/1 outcome is medium consensus and is isolated.
+    Malicious consensus additionally requires evidence for every emitted
+    ATT&CK technique; a technique is only retained when at least two reviewers
+    provide an in-range evidence index for it.
     """
 
     def __init__(
@@ -42,6 +45,8 @@ class ConsensusLabeler:
         *,
         confidence_floor: float = 0.75,
         first_evidence_tolerance: int = 1,
+        reviewer_configs: Mapping[str, object] | list[object] | tuple[object, ...] | None = None,
+        require_reviewer_revisions: bool = True,
     ) -> None:
         missing = {"A", "B"} - set(models)
         if missing:
@@ -50,20 +55,25 @@ class ConsensusLabeler:
             raise ValueError("confidence_floor must be between 0 and 1")
         if first_evidence_tolerance < 0:
             raise ValueError("first_evidence_tolerance must be non-negative")
+        if reviewer_configs is not None:
+            # Import lazily so the protocol remains usable by lightweight
+            # embedding/tests without constructing a network client.
+            from cmdrisk.teacher.client import validate_distinct_reviewer_configs
+
+            validate_distinct_reviewer_configs(
+                reviewer_configs,  # type: ignore[arg-type]
+                roles=("A", "B", "C"),
+                require_revision=require_reviewer_revisions,
+            )
         self.models = dict(models)
         self.confidence_floor = confidence_floor
         self.first_evidence_tolerance = first_evidence_tolerance
 
     def label(self, session: SessionRecord) -> ConsensusDecision:
-        single_whoami = _is_single_whoami(session)
         votes: dict[str, TeacherLabelResponse] = {
             role: self.models[role].label(session) for role in ("A", "B")
         }
-        if single_whoami:
-            votes = {
-                role: _as_benign_whoami_vote(vote) for role, vote in votes.items()
-            }
-        needs_tiebreak = False if single_whoami else self._needs_tiebreak(votes["A"], votes["B"])
+        needs_tiebreak = self._needs_tiebreak(votes["A"], votes["B"])
         if needs_tiebreak:
             if "C" not in self.models:
                 raise ValueError("A/B conflict requires a configured C model")
@@ -73,11 +83,17 @@ class ConsensusLabeler:
         malicious = sum(vote.malicious for vote in votes.values()) > len(votes) / 2
         quality = LabelQuality.HIGH if high_consensus else LabelQuality.MEDIUM
         label = self._build_label(session, votes, malicious=malicious, quality=quality)
+        evidence_complete = not malicious or bool(label.technique_evidence)
+        if malicious and not evidence_complete:
+            # Keep the raw model decision in teacher_votes, but never promote a
+            # malicious label without per-technique evidence into training.
+            label = label.model_copy(update={"quality": LabelQuality.REJECTED})
+        accepted_for_training = high_consensus and evidence_complete
         return ConsensusDecision(
             session_id=session.session_id,
             label=label,
             consensus="high" if high_consensus else "medium",
-            accepted_for_training=high_consensus,
+            accepted_for_training=accepted_for_training,
             tiebreak_used=needs_tiebreak,
             vote_count=len(votes),
         )
@@ -146,7 +162,7 @@ class ConsensusLabeler:
                 raise ValueError("malicious consensus requires a first evidence index")
             first_evidence_index = min(evidence_indices)
             technique_evidence = self._technique_evidence(session, votes, first_evidence_index)
-            tactics = self._tactics(votes, technique_evidence)
+            tactics = self._tactics(technique_evidence)
 
         return Label(
             malicious=1 if malicious else 0,
@@ -180,62 +196,37 @@ class ConsensusLabeler:
                 if valid_indices:
                     by_technique[technique][role].update(valid_indices)
 
+        required_votes = 2 if len(votes) == 2 else 2
         return {
             technique: sorted(
                 set().union(*(indices for indices in role_indices.values()))
             )
             for technique, role_indices in sorted(by_technique.items())
-            if len(role_indices) >= 2
+            if len(role_indices) >= required_votes
         }
 
     @staticmethod
     def _tactics(
-        votes: Mapping[str, TeacherLabelResponse],
         technique_evidence: Mapping[str, list[int]],
     ) -> list[str]:
-        counts: dict[str, int] = defaultdict(int)
-        for vote in votes.values():
-            seen = {
-                tactic
-                for raw_tactic in vote.tactics
-                if (tactic := normalize_tactic(raw_tactic)) is not None
-            }
-            for tactic in seen:
-                counts[tactic] += 1
-        explicit = {tactic for tactic, count in counts.items() if count >= 2}
-        derived = set(tactics_for_techniques(list(technique_evidence)))
-        return sorted(explicit | derived, key=_tactic_order)
-
-
-def _is_single_whoami(session: SessionRecord) -> bool:
-    return len(session.commands) == 1 and session.commands[0].cmd.strip() == "whoami"
-
-
-def _as_benign_whoami_vote(vote: TeacherLabelResponse) -> TeacherLabelResponse:
-    if not vote.malicious:
-        return vote
-    return TeacherLabelResponse(
-        malicious=False,
-        first_evidence_index=None,
-        technique_evidence={},
-        tactics=[],
-        confidence=vote.confidence,
-    )
+        # Tactics are derived from evidence-backed techniques. Explicit tactic
+        # votes are retained in teacher_votes but never used as a substitute for
+        # technique-level evidence.
+        return tactics_for_techniques(list(technique_evidence))
 
 
 def _vote_payload(role: str, vote: TeacherLabelResponse) -> dict[str, object]:
+    """Serialize an unchanged model vote, including explicit provenance."""
+
     return {
         "role": role,
+        "provenance": "raw_model_vote",
         "malicious": vote.malicious,
         "first_evidence_index": vote.first_evidence_index,
-        "technique_evidence": vote.technique_evidence,
-        "tactics": vote.tactics,
+        "technique_evidence": {
+            technique: list(indices)
+            for technique, indices in vote.technique_evidence.items()
+        },
+        "tactics": list(vote.tactics),
         "confidence": vote.confidence,
     }
-
-
-def _tactic_order(tactic_id: str) -> int:
-    from cmdrisk.taxonomy import TACTICS
-
-    order = {tactic.id: index for index, tactic in enumerate(TACTICS)}
-    return order.get(tactic_id, len(order))

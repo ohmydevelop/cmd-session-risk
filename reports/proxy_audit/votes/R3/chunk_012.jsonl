@@ -1,0 +1,7 @@
+{"session_id":"sha256:7a1d684eed309fbabc27f5fa19072e163480a2119158bcca55cfddce068ffa49","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.55}
+{"session_id":"sha256:ff538b7368957a8fe3852adea35f52265ec521ca16692eab8ac68f014dd52421","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.78}
+{"session_id":"sha256:c2dd4a65a0fa218863a4cf581c94694ad6c7c9b696f248235f9a1b86bfe2ab3b","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.55}
+{"session_id":"sha256:67db6049508a1b6e0ecb6e7a84a1b36d2ee73f9858fac6c47479c76ec7c4d719","decision":"malicious","first_evidence_index":6,"technique_evidence":{"T1021":[6,7,9,11,14,16,18,20,22,24,26,28,30,32],"T1071":[8,10,12,13,15,17,19,21,23,25,27,29,31]},"tactics":[],"confidence":0.98}
+{"session_id":"sha256:0cb0d3b0911e7f1a7e797da81ea40e37a23ae64802f7ee93477d640621331695","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.55}
+{"session_id":"sha256:7ced278bcfb661edd7a04074c003ba38e5db4749cfb0092d5c98556a82c44c6f","decision":"uncertain","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.58}
+{"session_id":"sha256:a20f40a11720c3295e70f38fdb3279dd3aad135df2d9d87de5ac6aac5f0a62c6","decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.55}

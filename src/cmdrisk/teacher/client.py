@@ -65,6 +65,7 @@ class LedgerEntry:
     cost_usd: float
     usage_estimated: bool
     cache_scope: str
+    revision: str = ""
 
 
 class CostLedger:
@@ -158,6 +159,7 @@ class ModelConfig(BaseModel):
 
     role: str = Field(min_length=1)
     model: str = Field(min_length=1)
+    revision: str = ""
     base_url: str = Field(min_length=1)
     api_key: str = Field(default="", exclude=True, repr=False)
     timeout_s: float = Field(default=60.0, gt=0)
@@ -187,6 +189,7 @@ class ModelConfig(BaseModel):
             ),
             api_key=api_key,
             model=env.get(f"{prefix}_MODEL", role_key.lower()),
+            revision=env.get(f"{prefix}_REVISION", "").strip(),
             timeout_s=float(env.get(f"{prefix}_TIMEOUT_S", "60")),
             max_retries=int(env.get(f"{prefix}_MAX_RETRIES", "3")),
             max_output_tokens=int(env.get(f"{prefix}_MAX_OUTPUT_TOKENS", "4096")),
@@ -195,11 +198,82 @@ class ModelConfig(BaseModel):
             temperature=float(env.get(f"{prefix}_TEMPERATURE", "0")),
         )
 
+    @property
+    def identity(self) -> tuple[str, str, str]:
+        """Return the endpoint/model/revision identity used by consensus gates."""
+
+        return (self.base_url.rstrip("/"), self.model.strip(), self.revision.strip())
+
     def validate_runtime(self) -> None:
         if not self.api_key:
             raise ConfigurationError(f"missing runtime API key for role {self.role!r}")
         if self.model == self.role.lower():
             raise ConfigurationError(f"missing runtime model name for role {self.role!r}")
+
+
+def validate_distinct_reviewer_configs(
+    configs: Mapping[str, ModelConfig] | list[ModelConfig] | tuple[ModelConfig, ...],
+    *,
+    roles: tuple[str, ...] = ("A", "B", "C"),
+    require_revision: bool = True,
+) -> None:
+    """Reject duplicate endpoint/model/revision triples before network calls.
+
+    The default ``require_revision`` is intentionally strict: a proxy audit is
+    not reproducible when a provider silently moves a model alias.  Tests and
+    dry-run planning can pass ``False`` when no model call will be made.
+    """
+
+    if isinstance(configs, Mapping):
+        missing = set(roles) - set(configs)
+        if missing:
+            raise ConfigurationError(f"missing reviewer configurations: {sorted(missing)}")
+        ordered = [configs[role] for role in roles]
+    else:
+        ordered = list(configs)
+        if len(ordered) != len(roles):
+            raise ConfigurationError(
+                f"expected {len(roles)} reviewer configurations, got {len(ordered)}"
+            )
+    for role, config in zip(roles, ordered, strict=True):
+        if not isinstance(config, ModelConfig):
+            raise ConfigurationError(f"reviewer {role!r} is not a ModelConfig")
+        if not config.base_url.strip():
+            raise ConfigurationError(f"reviewer {role!r} has an empty endpoint")
+        if not config.model.strip():
+            raise ConfigurationError(f"reviewer {role!r} has an empty model")
+        if require_revision and not config.revision.strip():
+            raise ConfigurationError(f"reviewer {role!r} requires a non-empty revision")
+    seen: dict[tuple[str, str, str], str] = {}
+    for role, config in zip(roles, ordered, strict=True):
+        identity = config.identity
+        previous = seen.get(identity)
+        if previous is not None:
+            raise ConfigurationError(
+                "reviewer configurations must be distinct by endpoint/model/revision: "
+                f"{previous!r} and {role!r} both use {identity!r}"
+            )
+        seen[identity] = role
+
+
+# Backwards/readable aliases used by orchestration scripts and downstream code.
+def validate_distinct_model_configs(
+    configs: Mapping[str, ModelConfig] | list[ModelConfig] | tuple[ModelConfig, ...],
+    *,
+    roles: tuple[str, ...] = ("A", "B", "C"),
+    require_revision: bool = True,
+) -> None:
+    validate_distinct_reviewer_configs(
+        configs,
+        roles=roles,
+        require_revision=require_revision,
+    )
+
+
+def model_config_identity(config: ModelConfig) -> tuple[str, str, str]:
+    """Stable identity value shared by cache and reviewer provenance code."""
+
+    return config.identity
 
 
 class JsonChatClient(Protocol):
@@ -290,6 +364,7 @@ class OpenAICompatibleClient:
                         cost_usd=actual_cost,
                         usage_estimated=usage_estimated,
                         cache_scope=cache_scope,
+                        revision=self.config.revision,
                     ),
                 )
                 self._write_cache(cache_key, result)
@@ -374,6 +449,7 @@ class OpenAICompatibleClient:
         return {
             "role": self.config.role,
             "model": self.config.model,
+            "revision": self.config.revision,
             "endpoint": self._endpoint,
             "cache_key": cache_key,
             "cache_scope": cache_scope,
@@ -403,6 +479,7 @@ class OpenAICompatibleClient:
         body = {
             "role": self.config.role,
             "model": self.config.model,
+            "revision": self.config.revision,
             "base_url": self.config.base_url,
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
@@ -435,6 +512,7 @@ class OpenAICompatibleClient:
                 {
                     "role": self.config.role,
                     "model": self.config.model,
+                    "revision": self.config.revision,
                     "response": result.model_dump(mode="json"),
                 },
                 sort_keys=True,

@@ -43,7 +43,9 @@ def _prefix_label(record: SessionRecord, last_index: int) -> Label:
         )
 
     evidence = {
-        technique: sorted(index for index in indices if source.first_evidence_index <= index <= last_index)
+        technique: sorted(
+            index for index in indices if source.first_evidence_index <= index <= last_index
+        )
         for technique, indices in source.technique_evidence.items()
     }
     evidence = {technique: indices for technique, indices in evidence.items() if indices}

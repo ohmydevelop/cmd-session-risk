@@ -24,6 +24,7 @@ from cmdrisk.teacher import (  # noqa: E402
     PromptedModel,
     TeacherError,
 )
+from cmdrisk.teacher.client import validate_distinct_reviewer_configs  # noqa: E402
 from cmdrisk.teacher.labeling import ConsensusLabeler  # noqa: E402
 
 
@@ -51,17 +52,27 @@ def _model_clients(
     *,
     max_cost_usd: float | None,
     cache_dir: Path,
-) -> tuple[dict[str, PromptedModel], CostLedger | None]:
+) -> tuple[dict[str, PromptedModel], dict[str, ModelConfig], CostLedger | None]:
     ledger = CostLedger(max_cost_usd) if max_cost_usd is not None else None
     models: dict[str, PromptedModel] = {}
+    configs: dict[str, ModelConfig] = {}
     for role in ("A", "B", "C"):
+        config = ModelConfig.from_env(role)
         client = OpenAICompatibleClient(
-            ModelConfig.from_env(role),
+            config,
             ledger=ledger,
             cache_dir=cache_dir,
         )
+        configs[role] = config
         models[role] = PromptedModel(client)
-    return models, ledger
+    # Dry runs do not resolve provider revisions.  Network-backed runs require
+    # an immutable endpoint/model/revision identity before any request is sent.
+    validate_distinct_reviewer_configs(
+        configs,
+        roles=("A", "B", "C"),
+        require_revision=ledger is not None,
+    )
+    return models, configs, ledger
 
 
 def _print_dry_run(error: DryRunError) -> None:
@@ -70,11 +81,15 @@ def _print_dry_run(error: DryRunError) -> None:
 
 def _label(args: argparse.Namespace) -> int:
     records = _read_jsonl(args.input, SessionRecord)
-    models, ledger = _model_clients(
+    models, configs, ledger = _model_clients(
         max_cost_usd=args.max_cost_usd,
         cache_dir=args.cache_dir,
     )
-    labeler = ConsensusLabeler(models)
+    labeler = ConsensusLabeler(
+        models,
+        reviewer_configs=configs,
+        require_reviewer_revisions=ledger is not None,
+    )
     accepted: list[SessionRecord] = []
     isolated: list[SessionRecord] = []
     for record in records:
@@ -97,7 +112,7 @@ def _label(args: argparse.Namespace) -> int:
 
 def _augment(args: argparse.Namespace) -> int:
     parents = _read_jsonl(args.input, SessionRecord)
-    models, ledger = _model_clients(
+    models, configs, ledger = _model_clients(
         max_cost_usd=args.max_cost_usd,
         cache_dir=args.cache_dir,
     )
@@ -105,6 +120,12 @@ def _augment(args: argparse.Namespace) -> int:
         models["A"],
         (models["B"], models["C"]),
         max_rounds=args.max_rounds,
+        reviewer_configs={
+            "generator": configs["A"],
+            "validator_1": configs["B"],
+            "validator_2": configs["C"],
+        },
+        require_reviewer_revisions=ledger is not None,
     )
     variants: list[SessionRecord] = []
     for parent in parents:
@@ -127,7 +148,7 @@ def _augment(args: argparse.Namespace) -> int:
 
 
 def _hard_negative(args: argparse.Namespace) -> int:
-    models, ledger = _model_clients(
+    models, configs, ledger = _model_clients(
         max_cost_usd=args.max_cost_usd,
         cache_dir=args.cache_dir,
     )
@@ -141,6 +162,12 @@ def _hard_negative(args: argparse.Namespace) -> int:
         models["A"],
         (models["B"], models["C"]),
         max_rounds=args.max_rounds,
+        reviewer_configs={
+            "generator": configs["A"],
+            "validator_1": configs["B"],
+            "validator_2": configs["C"],
+        },
+        require_reviewer_revisions=ledger is not None,
     )
     try:
         result = generator.generate(

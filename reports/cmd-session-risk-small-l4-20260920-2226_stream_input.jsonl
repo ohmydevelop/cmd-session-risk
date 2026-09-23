@@ -1,0 +1,8 @@
+{"cmd": "system", "dt": null}
+{"cmd": "hostname shibui_8605", "dt": null}
+{"cmd": "/bin/busybox SHIBUI", "dt": null}
+{"cmd": "/bin/busybox ps; /bin/busybox SHIBUI", "dt": null}
+{"cmd": "/bin/busybox cat /proc/mounts; /bin/busybox SHIBUI", "dt": null}
+{"cmd": "/bin/busybox echo -e '\\x6b\\x61\\x6d\\x69' > /.nippon; /bin/busybox cat /.nippon; /bin/busybox rm /.nippon", "dt": null}
+{"cmd": "/bin/busybox echo -e '\\x6b\\x61\\x6d\\x69/dev' > /dev/.nippon; /bin/busybox cat /dev/.nippon; /bin/busybox rm /dev/.nippon", "dt": null}
+{"cmd": "/bin/busybox echo -e '\\x6b\\x61\\x6d\\x69/sys' > /sys/.nippon; /bin/busybox cat /sys/.nippon; /bin/busybox rm /sys/.nippon", "dt": null}

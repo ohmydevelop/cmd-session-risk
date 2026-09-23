@@ -14,3 +14,14 @@ build/
 *.egg-info/
 .env
 .ssh/
+work/
+logs/
+core.*
+tools/bert_infer_c
+tools/onnx_int8_c
+tools/cmd_pipeline_c
+tools/bert_infer_c_debug
+tools/cmd_pipeline_c_debug
+tools/cmd_pipeline_c_dump
+tools/cmd_pipeline_c_asan
+tools/lib/

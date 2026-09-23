@@ -8,6 +8,7 @@ from cmdrisk.teacher.augmentation import (
     InsufficientVariantsError,
     MaliciousAugmenter,
 )
+from cmdrisk.teacher.client import ConfigurationError, ModelConfig
 from cmdrisk.teacher.responses import (
     HardNegativeBatchResponse,
     HardNegativeValidationResponse,
@@ -35,6 +36,10 @@ class FakeMaliciousModel:
                         "true",
                     ],
                     first_evidence_index=max(0, base + self.offset),
+                    technique_evidence={
+                        "T1105": [max(0, base + self.offset)],
+                        "T1222": [max(0, base + self.offset)],
+                    },
                     tactics=["TA0011", "TA0005"],
                     techniques=["T1105", "T1222"],
                     confidence=0.95,
@@ -49,10 +54,19 @@ class FakeMaliciousModel:
         commands: list[str],
         first_evidence_index: int,
     ) -> MaliciousValidationResponse:
+        evidence = (
+            {
+                "T1105": [first_evidence_index],
+                "T1222": [first_evidence_index],
+            }
+            if not self.validator
+            else {}
+        )
         return MaliciousValidationResponse(
             malicious=not self.validator,
             parent_behavior_preserved=not self.validator,
             first_evidence_index=first_evidence_index if not self.validator else None,
+            technique_evidence=evidence,
             tactics=["TA0011", "TA0005"] if not self.validator else [],
             techniques=["T1105", "T1222"] if not self.validator else [],
             confidence=0.95,
@@ -213,3 +227,72 @@ def test_hard_negative_low_confidence_is_rejected() -> None:
             family_id="benign-family",
             count=2,
         )
+
+
+def _reviewer_configs(model: str = "generator-model") -> dict[str, ModelConfig]:
+    return {
+        "generator": ModelConfig(
+            role="generator",
+            model=model,
+            revision="rev-1",
+            base_url="https://teacher.invalid/v1",
+        ),
+        "validator_1": ModelConfig(
+            role="validator_1",
+            model="validator-one",
+            revision="rev-1",
+            base_url="https://teacher.invalid/v1",
+        ),
+        "validator_2": ModelConfig(
+            role="validator_2",
+            model="validator-two",
+            revision="rev-1",
+            base_url="https://teacher.invalid/v1",
+        ),
+    }
+
+
+def test_malicious_augmentation_rejects_generator_validator_identity_overlap() -> None:
+    configs = _reviewer_configs()
+    configs["validator_1"] = configs["generator"].model_copy(
+        update={"role": "validator_1"}
+    )
+    with pytest.raises(ConfigurationError, match="must be distinct"):
+        MaliciousAugmenter(
+            FakeMaliciousModel(count=8),
+            (FakeMaliciousModel(count=8), FakeMaliciousModel(count=8)),
+            reviewer_configs=configs,
+        )
+
+
+def test_hard_negative_generator_rejects_generator_validator_identity_overlap() -> None:
+    configs = _reviewer_configs()
+    configs["validator_1"] = configs["generator"].model_copy(
+        update={"role": "validator_1"}
+    )
+    with pytest.raises(ConfigurationError, match="must be distinct"):
+        HardNegativeGenerator(
+            FakeHardNegativeModel(count=2),
+            (
+                FakeHardNegativeModel(confidence=0.95),
+                FakeHardNegativeModel(confidence=0.96),
+            ),
+            reviewer_configs=configs,
+        )
+
+
+def test_augmentation_preserves_independent_evidence_votes() -> None:
+    result = MaliciousAugmenter(
+        FakeMaliciousModel(count=8),
+        (FakeMaliciousModel(count=8), FakeMaliciousModel(count=8)),
+        max_rounds=1,
+        reviewer_configs=_reviewer_configs(),
+    ).augment(_parent(), count=8)
+    first = result.records[0]
+    assert first.label.technique_evidence == {"T1105": [1], "T1222": [1]}
+    assert [vote["role"] for vote in first.label.teacher_votes] == [
+        "generator",
+        "validator_1",
+        "validator_2",
+    ]
+    assert all(vote["technique_evidence"] for vote in first.label.teacher_votes)

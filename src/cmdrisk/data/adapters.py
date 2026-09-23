@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
+import itertools
 import json
 import re
 import zipfile
@@ -21,6 +24,11 @@ from cmdrisk.schema import (
 from cmdrisk.taxonomy import normalize_technique, tactics_for_techniques
 
 from .normalization import clean_command, stable_session_id
+from .streaming import (
+    iter_stream_values,
+    iter_zip_member_texts,
+    open_json_text,
+)
 from .yaml_utils import load_yaml_file
 
 PLACEHOLDER_RE = re.compile(r"#\{([A-Za-z0-9_.-]+)\}")
@@ -144,37 +152,52 @@ class MicrosoftIoTAdapter:
     ) -> Iterator[SessionRecord]:
         source = Path(path)
         paths = (
-            sorted((*source.rglob("*.json"), *source.rglob("*.zip")))
+            sorted(
+                (
+                    *source.rglob("*.json"),
+                    *source.rglob("*.jsonl"),
+                    *source.rglob("*.zip"),
+                )
+            )
             if source.is_dir()
             else [source]
         )
         for document_path in paths:
-            document = _read_json_document(document_path, password=password)
-            for item in _candidate_mappings(document):
-                raw_commands = item.get("Commands") or item.get("commands") or []
-                if isinstance(raw_commands, str):
-                    raw_commands = raw_commands.splitlines()
-                commands = _as_commands(raw_commands)
-                if not commands:
-                    continue
-                external_id = str(
-                    item.get("ID") or item.get("id") or stable_session_id("raw", commands)
-                )
-                meta = {
-                    key: item[key]
-                    for key in ("Protocol", "TimesSeen", "FirstSeen", "LastSeen")
-                    if key in item
-                }
-                meta["raw_commands"] = list(raw_commands)
-                yield _make_record(
-                    source_name=self.source_name,
-                    source_kind=SourceKind.REAL_MALICIOUS,
-                    license_name=self.license_name,
-                    external_id=external_id,
-                    commands=commands,
-                    malicious=True,
-                    meta=meta,
-                )
+            # Streamed: the encrypted archive expands to ~878 MB and must
+            # never be materialised (v3 loaded it whole, which capped the
+            # corpus at 5,000 sessions per source).
+            with open_json_text(document_path, password=password) as text:
+                for value in iter_stream_values(text):
+                    for item in _candidate_mappings(value):
+                        record = self._record_from_item(item)
+                        if record is not None:
+                            yield record
+
+    def _record_from_item(self, item: dict[str, Any]) -> SessionRecord | None:
+        raw_commands = item.get("Commands") or item.get("commands") or []
+        if isinstance(raw_commands, str):
+            raw_commands = raw_commands.splitlines()
+        commands = _as_commands(raw_commands)
+        if not commands:
+            return None
+        external_id = str(
+            item.get("ID") or item.get("id") or stable_session_id("raw", commands)
+        )
+        meta = {
+            key: item[key]
+            for key in ("Protocol", "TimesSeen", "FirstSeen", "LastSeen")
+            if key in item
+        }
+        meta["raw_commands"] = list(raw_commands)
+        return _make_record(
+            source_name=self.source_name,
+            source_kind=SourceKind.REAL_MALICIOUS,
+            license_name=self.license_name,
+            external_id=external_id,
+            commands=commands,
+            malicious=True,
+            meta=meta,
+        )
 
 
 class ShellAttackEvolutionAdapter:
@@ -194,44 +217,40 @@ class ShellAttackEvolutionAdapter:
             for document_path in paths:
                 yield from self.iter_records(document_path)
             return
-        if source.suffix.casefold() == ".zip":
-            with zipfile.ZipFile(source) as archive:
-                for name in archive.namelist():
-                    if not name.casefold().endswith((".json", ".jsonl")):
-                        continue
-                    content = archive.read(name).decode("utf-8-sig")
-                    yield from self._iter_content(content, external_prefix=name)
+        if source.suffix.casefold() == ".zip" or zipfile.is_zipfile(source):
+            for name, text in iter_zip_member_texts(source):
+                yield from self._iter_stream(
+                    iter_stream_values(text), external_prefix=name
+                )
             return
-        yield from self._iter_content(source.read_text(encoding="utf-8-sig"), external_prefix=source.name)
+        with source.open("r", encoding="utf-8-sig") as text:
+            yield from self._iter_stream(
+                iter_stream_values(text), external_prefix=source.name
+            )
 
     def _iter_content(self, content: str, *, external_prefix: str) -> Iterator[SessionRecord]:
-        stripped = content.lstrip()
-        if stripped.startswith(("[", "{")):
-            try:
-                document = json.loads(content)
-            except json.JSONDecodeError:
-                if not stripped.startswith("{"):
-                    raise
-                document = [json.loads(line) for line in content.splitlines() if line.strip()]
-            values: Iterable[Any]
-            if isinstance(document, list):
-                values = document
-            elif isinstance(document, dict) and isinstance(document.get("sessions"), list):
-                values = document["sessions"]
-            else:
-                values = [document]
-        else:
-            values = (json.loads(line) for line in content.splitlines() if line.strip())
+        """Compatibility wrapper that streams from an in-memory document."""
 
-        values = list(values)
-        if values and all(
-            isinstance(item, dict) and "commands" not in item and "command_sequence" not in item
-            for item in values
-        ):
-            yield from self._iter_cowrie_events(values, external_prefix=external_prefix)
+        yield from self._iter_stream(
+            iter_stream_values(io.StringIO(content)), external_prefix=external_prefix
+        )
+
+    def _iter_stream(
+        self, values: Iterable[Any], *, external_prefix: str
+    ) -> Iterator[SessionRecord]:
+        stream = iter(values)
+        try:
+            first = next(stream)
+        except StopIteration:
+            return
+        chained = itertools.chain([first], stream)
+        if _looks_like_cowrie_event(first):
+            # Cowrie raw event logs: one JSON object per event; sessions are
+            # reconstructed from the connection key plus an idle gap.
+            yield from self._iter_cowrie_events(chained, external_prefix=external_prefix)
             return
 
-        for index, item in enumerate(values):
+        for index, item in enumerate(_expand_sessions(chained)):
             if not isinstance(item, dict):
                 continue
             raw_commands = item.get("commands") or item.get("command_sequence") or []
@@ -239,7 +258,9 @@ class ShellAttackEvolutionAdapter:
             if not commands:
                 continue
             techniques = _extract_techniques(item.get("attack_techniques"))
-            external_id = str(item.get("session_id") or item.get("id") or f"{external_prefix}:{index}")
+            external_id = str(
+                item.get("session_id") or item.get("id") or f"{external_prefix}:{index}"
+            )
             meta = {
                 key: item[key]
                 for key in ("period", "src_ip", "command_count", "session_pattern")
@@ -262,42 +283,25 @@ class ShellAttackEvolutionAdapter:
             )
 
     def _iter_cowrie_events(
-        self, values: list[Any], *, external_prefix: str
+        self, values: Iterable[Any], *, external_prefix: str
     ) -> Iterator[SessionRecord]:
-        groups: list[tuple[tuple[Any, ...], list[dict[str, Any]]]] = []
         current_key: tuple[Any, ...] | None = None
         current: list[dict[str, Any]] = []
         previous: datetime | None = None
-        for item in values:
-            if not isinstance(item, dict) or item.get("info") != "command.input":
-                continue
-            timestamp = _parse_timestamp(str(item.get("timestamp", "")).replace(" ", "T"))
-            key = (item.get("src_host"), item.get("dst_host"), item.get("pot_id"))
-            gap = (
-                previous is not None
-                and timestamp is not None
-                and (timestamp - previous).total_seconds() > 3600
-            )
-            if current and (key != current_key or gap):
-                groups.append((current_key or (), current))
-                current = []
-            current_key = key
-            current.append(item)
-            previous = timestamp
-        if current:
-            groups.append((current_key or (), current))
+        closed: set[tuple[Any, ...]] = set()
+        index = 0
 
-        for index, (_, events) in enumerate(groups):
+        def build(events: list[dict[str, Any]]) -> SessionRecord | None:
             commands = []
             for event in events:
                 command = _command_from_cowrie_event(event)
                 if command:
                     commands.append(command)
             if not commands:
-                continue
+                return None
             source_ip = events[0].get("src_host")
             external_id = f"{external_prefix}:{source_ip}:{index}"
-            yield _make_record(
+            return _make_record(
                 source_name=self.source_name,
                 source_kind=SourceKind.REAL_MALICIOUS,
                 license_name=self.license_name,
@@ -311,6 +315,87 @@ class ShellAttackEvolutionAdapter:
                     "cowrie_event_count": len(events),
                 },
             )
+
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            key = _cowrie_session_key(item)
+            if item.get("info") == "session.closed":
+                closed.add(key)
+                continue
+            if item.get("info") != "command.input":
+                continue
+            timestamp = _parse_timestamp(str(item.get("timestamp", "")).replace(" ", "T"))
+            gap = (
+                previous is not None
+                and timestamp is not None
+                and (timestamp - previous).total_seconds() > 3600
+            )
+            if current and (key != current_key or gap or key in closed):
+                record = build(current)
+                if record is not None:
+                    yield record
+                index += 1
+                current = []
+            closed.discard(key)
+            current_key = key
+            current.append(item)
+            previous = timestamp
+        if current:
+            record = build(current)
+            if record is not None:
+                yield record
+
+
+def _looks_like_cowrie_event(value: Any) -> bool:
+    """Return whether a streamed object is a raw Cowrie event record."""
+
+    if not isinstance(value, dict):
+        return False
+    if "commands" in value or "command_sequence" in value:
+        return False
+    return "info" in value or "tshark" in value or "session.closed" in str(value.get("info", ""))
+
+
+def _expand_sessions(values: Iterable[Any]) -> Iterator[dict[str, Any]]:
+    """Lazily unwrap common session containers without materialising them."""
+
+    wrapper_keys = ("sessions", "records", "values", "value", "data")
+    for value in values:
+        if isinstance(value, dict):
+            expanded = False
+            for key in wrapper_keys:
+                nested = value.get(key)
+                if isinstance(nested, list):
+                    for item in nested:
+                        if isinstance(item, dict):
+                            yield item
+                    expanded = True
+                    break
+            if not expanded:
+                yield value
+        elif isinstance(value, list):
+            yield from _expand_sessions(value)
+
+
+def _cowrie_session_key(item: dict[str, Any]) -> tuple[Any, ...]:
+    """Return a connection/session boundary without merging reused client ports."""
+
+    explicit: Any = None
+    for field in ("session", "session_id", "sessionid", "uuid", "login"):
+        candidate = item.get(field)
+        if candidate not in (None, "", {}, []):
+            explicit = str(candidate)
+            break
+    connection = (
+        item.get("src_host"),
+        item.get("src_port"),
+        item.get("dst_host"),
+        item.get("dst_port"),
+        item.get("protocol"),
+        item.get("pot_id"),
+    )
+    return (*connection, explicit)
 
 
 def _extract_techniques(value: Any) -> list[str]:
@@ -355,23 +440,28 @@ class ZenodoAdapter:
             for document_path in paths:
                 yield from self.iter_records(document_path)
             return
-        if source.suffix.casefold() == ".zip":
-            with zipfile.ZipFile(source) as archive:
-                for name in archive.namelist():
-                    if name.casefold().endswith(".json"):
-                        content = archive.read(name).decode("utf-8-sig")
-                        yield from self._iter_actions(content, source_name=name)
+        if source.suffix.casefold() == ".zip" or zipfile.is_zipfile(source):
+            for name, text in iter_zip_member_texts(source):
+                yield from self._iter_action_values(
+                    iter_stream_values(text), source_name=name
+                )
             return
-        yield from self._iter_actions(source.read_text(encoding="utf-8-sig"), source_name=source.name)
+        with source.open("r", encoding="utf-8-sig") as text:
+            yield from self._iter_action_values(
+                iter_stream_values(text), source_name=source.name
+            )
 
     def _iter_actions(self, content: str, *, source_name: str) -> Iterator[SessionRecord]:
-        stripped = content.lstrip()
-        if stripped.startswith("["):
-            values = json.loads(content)
-        else:
-            values = [json.loads(line) for line in content.splitlines() if line.strip()]
-        if not isinstance(values, list):
-            raise AdapterError("Zenodo action file must contain a JSON array or JSONL objects")
+        """Compatibility wrapper for callers that already hold a string."""
+
+        yield from self._iter_action_values(
+            iter_stream_values(io.StringIO(content)), source_name=source_name
+        )
+
+    def _iter_action_values(
+        self, values: Iterable[Any], *, source_name: str
+    ) -> Iterator[SessionRecord]:
+        """Reconstruct KYPO sessions from any streamed JSON/JSONL shape."""
 
         current: list[dict[str, Any]] = []
         previous_timestamp: datetime | None = None
@@ -588,7 +678,11 @@ class ScriptRepoAdapter:
 
     def iter_records(self, path: str | Path, **_: Any) -> Iterator[SessionRecord]:
         source = Path(path)
-        paths = [source] if source.is_file() else sorted(item for item in source.rglob("*") if item.is_file())
+        paths = (
+            [source]
+            if source.is_file()
+            else sorted(item for item in source.rglob("*") if item.is_file())
+        )
         for file_path in paths:
             if any(part in self.ignored_parts for part in file_path.parts):
                 continue
@@ -601,7 +695,13 @@ class ScriptRepoAdapter:
                 category = "shell"
                 commands = self.extract_shell(file_path)
             elif file_path.suffix.casefold() in {".yaml", ".yml"}:
-                category, commands = self._extract_yaml(file_path)
+                try:
+                    category, commands = self._extract_yaml(file_path)
+                except (RuntimeError, UnicodeError, ValueError):
+                    # Repository YAML often contains templating or multiple
+                    # documents. One unsupported file must not abort the
+                    # entire benign source.
+                    continue
             if not commands:
                 continue
             external_id = str(file_path.resolve())
@@ -624,7 +724,9 @@ class ScriptRepoAdapter:
             line = raw_line.strip()
             if not pending and not re.match(r"(?i)^(RUN|CMD|ENTRYPOINT)\b", line):
                 continue
-            instruction = re.sub(r"(?i)^(RUN|CMD|ENTRYPOINT)\s*", "", line, count=1) if not pending else line
+            instruction = (
+                re.sub(r"(?i)^(RUN|CMD|ENTRYPOINT)\s*", "", line, count=1) if not pending else line
+            )
             continuation = instruction.rstrip().endswith("\\")
             instruction = instruction.rstrip()
             if continuation:
@@ -676,7 +778,15 @@ class ScriptRepoAdapter:
         if document.get("apiVersion") and document.get("kind"):
             return "kubernetes", _walk_kubernetes_commands(document)
         ansible_commands = _walk_strings_for_keys(
-            document, {"shell", "command", "script", "raw", "ansible.builtin.shell", "ansible.builtin.command"}
+            document,
+            {
+                "shell",
+                "command",
+                "script",
+                "raw",
+                "ansible.builtin.shell",
+                "ansible.builtin.command",
+            },
         )
         if ansible_commands or document.get("hosts") or document.get("tasks"):
             return "ansible", ansible_commands
@@ -719,6 +829,147 @@ def _walk_kubernetes_commands(value: Any) -> list[str]:
     return found
 
 
+class RealHistoryPoolAdapter:
+    """Reconstruct sessions from a flat pool of observed real shell commands.
+
+    ``data/raw/hf_bash_history/bash.txt`` is a newline-delimited concatenation
+    of real user shell histories.  It is *not* a session corpus: the delimiter
+    between sessions is only recoverable from the literal ``exit``/``logout``
+    lines that some contributors kept in their history file.  The adapter is
+    therefore explicit about the provenance of every reconstructed session:
+
+    * a fragment that ends at an observed ``exit``/``logout``/``quit`` line is
+      stamped ``session_boundary="real_exit_delimiter"`` (the boundary is
+      present in the source);
+    * anything else is chopped into ``window``-sized fragments and stamped
+      ``session_boundary="synthetic_window"`` (the boundary is ours).
+
+    In both cases ``parent_session_id`` points at the reconstructed fragment so
+    a downstream family cap can never sever the provenance link, and
+    ``meta.window_index`` records the fragment's position in that history block.
+
+    The pool is real *commands*, but the session grouping is synthetic, so the
+    kind is :attr:`SourceKind.REAL_HISTORY_POOL` and the label quality defaults
+    to ``medium``; such records must never enter the temporal holdout or the
+    blind test split.
+    """
+
+    source_name = "bash_history_pool"
+    license_name = "unverified; upstream redistribution terms not documented"
+    _TERMINATORS = frozenset({"exit", "logout", "quit", "\u0004"})
+
+    def __init__(
+        self,
+        *,
+        window: int = 12,
+        max_window: int = 32,
+        min_commands: int = 1,
+    ) -> None:
+        if window < 1:
+            raise AdapterError("window must be positive")
+        if max_window < window:
+            raise AdapterError("max_window must be >= window")
+        if min_commands < 1:
+            raise AdapterError("min_commands must be positive")
+        self.window = window
+        self.max_window = max_window
+        self.min_commands = min_commands
+
+    def iter_records(
+        self, path: str | Path, *, source_name: str | None = None, **_: Any
+    ) -> Iterator[SessionRecord]:
+        source = Path(path)
+        if source.is_dir():
+            paths = sorted(item for item in source.rglob("*") if item.is_file())
+        else:
+            paths = [source]
+        name = source_name or self.source_name
+        for document_path in paths:
+            yield from self._iter_document(document_path, name)
+
+    def _iter_document(self, path: Path, source_name: str) -> Iterator[SessionRecord]:
+        block: list[tuple[int, str]] = []
+        block_start = 1
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line_number, raw_line in enumerate(handle, start=1):
+                command = clean_command(raw_line)
+                if not command:
+                    continue
+                if command.casefold() in self._TERMINATORS:
+                    if block:
+                        yield from self._emit_block(
+                            block, path, source_name, observed=True
+                        )
+                    block = []
+                    block_start = line_number + 1
+                    continue
+                if not block:
+                    block_start = line_number
+                block.append((line_number, command))
+            if block:
+                yield from self._emit_block(block, path, source_name, observed=False)
+
+    def _emit_block(
+        self,
+        block: list[tuple[int, str]],
+        path: Path,
+        source_name: str,
+        *,
+        observed: bool,
+    ) -> Iterator[SessionRecord]:
+        if not block:
+            return
+        if observed and len(block) <= self.max_window:
+            chunks = [block]
+        else:
+            chunks = [
+                block[offset : offset + self.window] for offset in range(0, len(block), self.window)
+            ]
+        block_first = block[0][0]
+        block_last = block[-1][0]
+        # The block id is positional (it identifies *where* in the pool the
+        # fragment came from) and is deliberately distinct from the session id
+        # so lineage never collapses into a self-loop.
+        block_id = "fragment:" + hashlib.sha256(
+            f"{path.name}:{block_first}-{block_last}".encode()
+        ).hexdigest()[:32]
+        for offset, chunk in enumerate(chunks):
+            commands = [command for _, command in chunk]
+            if len(commands) < self.min_commands:
+                continue
+            line_numbers = [line_number for line_number, _ in chunk]
+            boundary = (
+                "real_exit_delimiter"
+                if observed and len(chunks) == 1
+                else "synthetic_window"
+            )
+            record = _make_record(
+                source_name=source_name,
+                source_kind=SourceKind.REAL_HISTORY_POOL,
+                license_name=self.license_name,
+                external_id=f"{path.name}:{line_numbers[0]}-{line_numbers[-1]}",
+                commands=_as_commands(commands),
+                malicious=False,
+                quality=LabelQuality.MEDIUM,
+                meta={
+                    "session_boundary": boundary,
+                    "pool_path": str(path),
+                    "pool_line_start": line_numbers[0],
+                    "pool_line_end": line_numbers[-1],
+                    "history_block_id": block_id,
+                    "window_index": offset,
+                    "window_size": len(commands),
+                },
+            )
+            yield record.model_copy(
+                update={
+                    "source": record.source.model_copy(
+                        update={"parent_session_id": block_id}
+                    )
+                }
+            )
+
+
 _ADAPTERS: dict[str, type[Any]] = {
     "microsoft_iot": MicrosoftIoTAdapter,
     "microsoft": MicrosoftIoTAdapter,
@@ -730,6 +981,9 @@ _ADAPTERS: dict[str, type[Any]] = {
     "atomic": AtomicRedTeamAdapter,
     "script_repo": ScriptRepoAdapter,
     "scripts": ScriptRepoAdapter,
+    "real_history_pool": RealHistoryPoolAdapter,
+    "bash_history": RealHistoryPoolAdapter,
+    "history_pool": RealHistoryPoolAdapter,
 }
 
 

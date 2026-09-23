@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a blind three-reviewer proxy audit over JSONL cases."""
+"""Run a blind multi-reviewer proxy audit over JSONL cases."""
 
 from __future__ import annotations
 
@@ -48,6 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/proxy-audit"))
     parser.add_argument("--unresolved-out", type=Path)
+    parser.add_argument(
+        "--tiebreak-role",
+        action="append",
+        default=[],
+        metavar="ROLE",
+        help=(
+            "optional reviewer role consulted only after the primary R1-R3 panel "
+            "cannot resolve a case; reads CMDRISK_REVIEWER_<ROLE>_* and is repeatable"
+        ),
+    )
     return parser
 
 
@@ -56,11 +66,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cases = _read_cases(args.input)
         ledger = CostLedger(args.max_cost_usd) if args.max_cost_usd is not None else None
+        primary_roles = ("R1", "R2", "R3")
+        tiebreak_roles = tuple(args.tiebreak_role)
+        roles = primary_roles + tiebreak_roles
         configs = [
             ModelConfig.from_env(role, namespace="CMDRISK_REVIEWER")
-            for role in ("R1", "R2", "R3")
+            for role in roles
         ]
-        if len({config.model for config in configs}) != 3:
+        if len({config.model for config in configs}) != len(configs):
+            if tiebreak_roles:
+                raise ConfigurationError("proxy audit requires distinct reviewer models")
             raise ConfigurationError("proxy audit requires three distinct reviewer models")
         reviewers = [
             PromptedModel(
@@ -72,7 +87,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             for config in configs
         ]
-        auditor = ProxyAuditor((reviewers[0], reviewers[1], reviewers[2]))
+        auditor = ProxyAuditor(
+            tuple(reviewers[:3]),
+            tuple(reviewers[3:]),
+        )
         try:
             report = auditor.audit(cases)
         except DryRunError as exc:

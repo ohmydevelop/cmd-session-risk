@@ -1,0 +1,19 @@
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1021":[1,2,4,6]},"tactics":["Execution","Lateral Movement"],"confidence":0.9}
+{"decision":"malicious","first_evidence_index":3,"technique_evidence":{"T1041":[3,8]},"tactics":["Command and Control","Exfiltration"],"confidence":0.74}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0,2,3,4]},"tactics":["Execution","Lateral Movement"],"confidence":0.9}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1105":[0,1,3]},"tactics":["Command and Control","Collection"],"confidence":0.81}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.65}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.72}
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1046":[1,2]},"tactics":["Discovery","Execution"],"confidence":0.76}
+{"decision":"malicious","first_evidence_index":21,"technique_evidence":{"T1110":[21,23,24]},"tactics":["Credential Access"],"confidence":0.84}
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1021":[1,2]},"tactics":["Execution","Lateral Movement"],"confidence":0.79}
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1021":[3,4,5,6,8,10,12,14,15]},"tactics":["Execution","Lateral Movement"],"confidence":0.92}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.74}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.7}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.76}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1046":[0]},"tactics":["Discovery","Execution"],"confidence":0.78}
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1046":[1,2],"T1021":[3]},"tactics":["Discovery","Lateral Movement"],"confidence":0.82}
+{"decision":"benign","first_evidence_index":null,"technique_evidence":{},"tactics":[],"confidence":0.66}
+{"decision":"malicious","first_evidence_index":1,"technique_evidence":{"T1105":[1,3,6]},"tactics":["Command and Control","Collection"],"confidence":0.76}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0,2,3,4]},"tactics":["Execution","Lateral Movement"],"confidence":0.91}
+{"decision":"malicious","first_evidence_index":0,"technique_evidence":{"T1021":[0]},"tactics":["Execution","Lateral Movement","Credential Access"],"confidence":0.89}

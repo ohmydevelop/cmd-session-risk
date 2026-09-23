@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from cmdrisk.schema import CommandEvent, Label, LabelQuality, SessionRecord, SourceInfo
 from cmdrisk.teacher.labeling import ConsensusLabeler
 from cmdrisk.teacher.prompts import PromptStore
@@ -78,9 +80,13 @@ def test_conflict_uses_c_and_two_to_one_is_medium_isolated() -> None:
     )
     decision = ConsensusLabeler(
         {
-            "A": FakeLabelModel(_response(True, 3)),
+            "A": FakeLabelModel(
+                _response(True, 3, techniques={"T1105": [3], "T1222": [3]})
+            ),
             "B": FakeLabelModel(_response(False, None)),
-            "C": FakeLabelModel(_response(True, 3)),
+            "C": FakeLabelModel(
+                _response(True, 3, techniques={"T1105": [3], "T1222": [3]})
+            ),
         }
     ).label(session)
     assert decision.consensus == "medium"
@@ -146,14 +152,14 @@ def test_three_way_evidence_drift_is_medium() -> None:
     assert decision.accepted_for_training is False
 
 
-def test_single_whoami_cannot_be_promoted_to_malicious() -> None:
-    decision = ConsensusLabeler(
-        {
-            "A": FakeLabelModel(_response(True, 0, confidence=0.10)),
-            "B": FakeLabelModel(_response(True, 0, confidence=0.10)),
-        }
-    ).label(_session(["whoami"]))
-    assert decision.label.malicious == 0
-    assert decision.label.first_evidence_index is None
-    assert decision.consensus == "high"
-    assert decision.accepted_for_training is True
+def test_single_whoami_low_confidence_votes_require_a_c_tiebreak() -> None:
+    # Two low-confidence malicious votes are not a consensus.  Without the
+    # configured C reviewer the decision must fail closed rather than promote
+    # a single-command discovery observation into training data.
+    with pytest.raises(ValueError, match="requires a configured C model"):
+        ConsensusLabeler(
+            {
+                "A": FakeLabelModel(_response(True, 0, confidence=0.10)),
+                "B": FakeLabelModel(_response(True, 0, confidence=0.10)),
+            }
+        ).label(_session(["whoami"]))

@@ -19,7 +19,9 @@ from cmdrisk.data.manifest import write_json_atomic, write_sha256_manifest  # no
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", action="append", required=True, type=Path)
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "data" / "processed" / "prefixes.jsonl")
+    parser.add_argument(
+        "--output", type=Path, default=PROJECT_ROOT / "data" / "processed" / "prefixes.jsonl"
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--resume", action="store_true")
     return parser.parse_args()
@@ -28,7 +30,9 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     if args.dry_run:
-        print(json.dumps({"inputs": [str(path) for path in args.input], "output": str(args.output)}))
+        print(
+            json.dumps({"inputs": [str(path) for path in args.input], "output": str(args.output)})
+        )
         return 0
     missing = [str(path) for path in args.input if not path.exists()]
     if missing:

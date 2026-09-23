@@ -11,7 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -184,6 +184,78 @@ def collect_preflight(path: Path | None = None) -> dict[str, Any]:
     }
 
 
+def _version_tuple(value: str | None) -> tuple[int, ...] | None:
+    if not value:
+        return None
+    parts: list[int] = []
+    for token in re.split(r"[.\-]", value):
+        if not token.isdigit():
+            break
+        parts.append(int(token))
+    return tuple(parts) or None
+
+
+def validate_preflight(
+    report: Mapping[str, Any],
+    *,
+    require_cuda: bool = False,
+    min_vram_gb: float = 0.0,
+    min_free_disk_gb: float = 0.0,
+    min_cpu_cores: int = 0,
+    min_cuda_version: str | None = None,
+) -> dict[str, Any]:
+    """Apply fail-closed minimums to a collected environment report."""
+
+    failures: list[str] = []
+    checks: dict[str, Any] = {}
+
+    gpu = report.get("gpu") if isinstance(report.get("gpu"), Mapping) else {}
+    devices = gpu.get("devices") if isinstance(gpu.get("devices"), list) else []
+    gpu_count = int(gpu.get("count") or len(devices) or 0)
+    checks["gpu_count"] = gpu_count
+    if require_cuda and gpu_count < 1:
+        failures.append("no_cuda_gpu")
+
+    max_vram_mib = 0
+    for device in devices:
+        if isinstance(device, Mapping):
+            memory = device.get("memory_total_mib")
+            if isinstance(memory, (int, float)) and memory > max_vram_mib:
+                max_vram_mib = int(memory)
+    checks["max_vram_mib"] = max_vram_mib
+    if min_vram_gb > 0 and max_vram_mib < min_vram_gb * 1024:
+        failures.append(f"insufficient_vram<{min_vram_gb:g}GiB")
+
+    if min_cuda_version:
+        required = _version_tuple(min_cuda_version)
+        actual = _version_tuple(str(gpu.get("cuda_version") or ""))
+        checks["cuda_version"] = gpu.get("cuda_version")
+        if actual is None or (required is not None and actual < required):
+            failures.append(f"cuda_version<{min_cuda_version}")
+
+    disk = report.get("disk") if isinstance(report.get("disk"), Mapping) else {}
+    free_bytes = disk.get("free_bytes")
+    checks["free_bytes"] = free_bytes
+    if min_free_disk_gb > 0:
+        minimum = min_free_disk_gb * 1024**3
+        if not isinstance(free_bytes, (int, float)) or free_bytes < minimum:
+            failures.append(f"insufficient_free_disk<{min_free_disk_gb:g}GiB")
+
+    cpu = report.get("cpu") if isinstance(report.get("cpu"), Mapping) else {}
+    logical = cpu.get("logical_cpus")
+    affinity = cpu.get("affinity_count")
+    cores = affinity if isinstance(affinity, int) and affinity > 0 else logical
+    checks["cpu_cores"] = cores
+    if min_cpu_cores > 0 and (not isinstance(cores, int) or cores < min_cpu_cores):
+        failures.append(f"insufficient_cpu_cores<{min_cpu_cores}")
+
+    return {
+        "passed": not failures,
+        "failures": failures,
+        "checks": checks,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="Write JSON to this path instead of stdout.")
@@ -191,6 +263,11 @@ def _parser() -> argparse.ArgumentParser:
         "--path", type=Path, default=None, help="Path used for disk reporting (default: cwd)."
     )
     parser.add_argument("--compact", action="store_true", help="Emit single-line JSON.")
+    parser.add_argument("--require-cuda", action="store_true")
+    parser.add_argument("--min-vram-gb", type=float, default=0.0)
+    parser.add_argument("--min-free-disk-gb", type=float, default=0.0)
+    parser.add_argument("--min-cpu-cores", type=int, default=0)
+    parser.add_argument("--min-cuda-version", default=None)
     return parser
 
 
@@ -201,6 +278,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 1
+
+    gate = validate_preflight(
+        report,
+        require_cuda=args.require_cuda,
+        min_vram_gb=args.min_vram_gb,
+        min_free_disk_gb=args.min_free_disk_gb,
+        min_cpu_cores=args.min_cpu_cores,
+        min_cuda_version=args.min_cuda_version,
+    )
+    report = {**report, "gates": gate}
     text = json.dumps(
         report,
         ensure_ascii=False,
@@ -208,9 +295,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         indent=None if args.compact else 2,
     )
     if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
     else:
         print(text)
+    if not gate["passed"]:
+        print(
+            json.dumps({"gate": "remote_preflight", "failures": gate["failures"]}, sort_keys=True),
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

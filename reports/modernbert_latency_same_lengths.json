@@ -1,0 +1,78 @@
+{
+  "artifact_dir": "artifacts/cmd-session-risk-l4-20260919-0020/onnx",
+  "cpu_affinity": null,
+  "deployment_profile": "cpu",
+  "failures": [
+    "p95_exceeds_tolerance",
+    "p99_exceeds_tolerance"
+  ],
+  "onnxruntime_version": "1.30.0",
+  "p95_ms": 223.37114620459033,
+  "p95_threshold_ms": 50.0,
+  "p99_ms": 234.50765872199548,
+  "p99_threshold_ms": 70.0,
+  "passed": false,
+  "profile": {
+    "affinity_count": null,
+    "affinity_cpus": null,
+    "architecture": "x86_64",
+    "avx2": true,
+    "failures": [],
+    "logical_cpus": 10,
+    "onnxruntime_version": "1.30.0",
+    "os": "Linux",
+    "passed": true,
+    "platform": "Linux-6.19.14+kali-amd64-x86_64-with-glibc2.43",
+    "processor_model": "Intel(R) Core(TM) Ultra 7 270K Plus",
+    "providers": [
+      "CPUExecutionProvider"
+    ]
+  },
+  "profile_passed": true,
+  "provider": "CPUExecutionProvider",
+  "results": [
+    {
+      "actual_tokens": 130,
+      "commands": 32,
+      "iterations": 50,
+      "max_ms": 63.22367399116047,
+      "mean_ms": 49.51945221866481,
+      "min_ms": 43.07694800081663,
+      "p50_ms": 47.99623799044639,
+      "p95_ms": 59.77114688575966,
+      "p99_ms": 62.557979593402706,
+      "requested_tokens": 128,
+      "warmup": 10
+    },
+    {
+      "actual_tokens": 258,
+      "commands": 64,
+      "iterations": 50,
+      "max_ms": 121.09657601104118,
+      "mean_ms": 94.7409887786489,
+      "min_ms": 84.50570597779006,
+      "p50_ms": 90.92913848871831,
+      "p95_ms": 115.02040374762146,
+      "p99_ms": 120.96855861454969,
+      "requested_tokens": 256,
+      "warmup": 10
+    },
+    {
+      "actual_tokens": 514,
+      "commands": 128,
+      "iterations": 50,
+      "max_ms": 244.77824100176804,
+      "mean_ms": 199.2113973008236,
+      "min_ms": 181.0049719933886,
+      "p50_ms": 194.1311999980826,
+      "p95_ms": 223.37114620459033,
+      "p99_ms": 234.50765872199548,
+      "requested_tokens": 512,
+      "warmup": 10
+    }
+  ],
+  "schema": "cmdrisk.latency_report",
+  "threshold_ms": 50.0,
+  "tolerance_ms": 10.0,
+  "version": 1
+}
