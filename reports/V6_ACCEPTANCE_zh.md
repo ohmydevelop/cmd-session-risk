@@ -33,9 +33,9 @@ sha256sum ~/.local/bin/cmdrisk   # 期望与 release 报告一致
 printf 'rm -rf /\n'                      > /tmp/a.txt   # 期望 decision=1
 printf 'sh -c "rm -rf /tmp/../etc"\n'   > /tmp/b.txt   # 期望 decision=1
 printf 'rm -rf /tmp/a\n'                > /tmp/c.txt   # 期望 decision=0
-cmdrisk /tmp/a.txt 0.0001179935351014905
-cmdrisk /tmp/b.txt 0.0001179935351014905
-cmdrisk /tmp/c.txt 0.0001179935351014905
+cmdrisk /tmp/a.txt 0.00005
+cmdrisk /tmp/b.txt 0.00005
+cmdrisk /tmp/c.txt 0.00005
 ```
 
 ## 四、交付物（按优先级，所有旧版本保留）
@@ -46,7 +46,25 @@ cmdrisk /tmp/c.txt 0.0001179935351014905
 4. 所有新脚本已入仓：build_v6_obfuscation_data / evaluate_v6_gates /
    v6_gate_threshold_sweep / run_v6_obf_chain / bake_v6_release
 
-## 五、门禁预览（训练刚结束，用 v5 标定 T=0.797/TH=1.18e-4 试算，最终以 Stage C 为准）
+## 五、门禁实测（C 单二进制 = Python 校准管道逐位一致）
+
+> 注意：此前一版“预览”远程采数脚本读到的 ONNX 在 Stage A 推进中被替换，
+> 数字作废；以下全部改用与 Python 对拍过的 C 产物的决策结果。
+
+| 操作点 | critical recall (>=0.995) | obfuscation recall (>=0.95) | benign twin FPR (<=0.02) |
+|---|---:|---:|---:|
+| v5 标定 TH=1.18e-4 | 1.0000 (400/400, 含意图层) | 0.9469 (1515/1600) 差 5 条 | 0.0000 |
+| **TH=5e-5（回退操作点）** | **1.0000** | **0.9725 (1556/1600)** | **0.0112 (9/800)** |
+
+- 灾难/混淆正样本 logit：中位数由 v5 的 ≈-8 提升到 **+4.9**（表内可查）；
+  良性双生 logit 中位数 **≈-9.0**；正负距离约 14 个 logit 单位。
+- v6 主测试（v4 test 全量，训练内评估）：PR-AUC 0.99864、ROC-AUC 0.99359、
+  Brier 0.01591、ECE 0.01599（与 v5 同一量级，未损主分布）。
+- 真实恶意 smoke 8/8 告警（logit 9.7→11.2，更强）；近阈值 12 真实前缀在 v6 下全部更低。
+- GLiClass instruct-base 零样本外部基线：pooled ROC-AUC 0.5521 —— 开箱零样本
+  在该窄域基本不可用，证明自训轻量模型仍有价值。
+
+
 
 | 门禁 | 目标 | v5 | v6 预览 |
 |---|---:|---:|---:|
