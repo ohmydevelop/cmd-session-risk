@@ -45,9 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", required=True)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--max-batch-tokens", type=int, default=32768)
-    parser.add_argument(
-        "--fp32-filename", default="model.onnx", help="FP32 graph filename"
-    )
+    parser.add_argument("--fp32-filename", default="model.onnx", help="FP32 graph filename")
     parser.add_argument(
         "--chunk-sessions",
         type=int,
@@ -85,9 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         for session_index, (_sid, commands) in enumerate(pending):
             for command_index in range(len(commands)):
                 prefix = commands[: command_index + 1]
-                items.append(
-                    (session_index, command_index, prefix, scorer.token_count(prefix))
-                )
+                items.append((session_index, command_index, prefix, scorer.token_count(prefix)))
         items.sort(key=lambda item: -item[3])
         batches: list[list[Any]] = []
         current: list[Any] = []
@@ -135,9 +131,10 @@ def main(argv: list[str] | None = None) -> int:
                     + "\n"
                 )
 
-    with open(args.input, encoding="utf-8") as source, open(
-        args.output, "w", encoding="utf-8"
-    ) as sink:
+    with (
+        open(args.input, encoding="utf-8") as source,
+        open(args.output, "w", encoding="utf-8") as sink,
+    ):
         pending: list[tuple[str, list[Any]]] = []
         for line_number, raw_line in enumerate(source, start=1):
             if not raw_line.strip():

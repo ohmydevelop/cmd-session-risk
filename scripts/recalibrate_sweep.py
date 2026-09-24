@@ -120,11 +120,11 @@ def _summarize(metrics: dict) -> dict:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    import numpy as np
     import torch
 
     from cmdrisk.model_factory import load_risk_model
     from cmdrisk.tokenization import CommandTokenizer
+    from cmdrisk.training.calibration import fit_calibration
     from cmdrisk.training.config import choose_batch_config
     from cmdrisk.training.data import expand_records, load_records
     from cmdrisk.training.labels import LabelVocabulary
@@ -133,7 +133,6 @@ def main(argv: list[str] | None = None) -> int:
         _metrics,
         _stable_family_partition,
     )
-    from cmdrisk.training.calibration import fit_calibration
 
     run_dir = args.run_dir
     config_path = run_dir / "training_config.json"
@@ -169,9 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     proxy_audit_report = (
-        json.loads(args.proxy_audit.read_text(encoding="utf-8"))
-        if args.proxy_audit
-        else None
+        json.loads(args.proxy_audit.read_text(encoding="utf-8")) if args.proxy_audit else None
     )
 
     print(
@@ -183,9 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # The test cache is deliberately independent of the calibration fraction so
     # that widening the calibration set never invalidates expensive test logits.
-    test_tag = _cache_key(
-        "test", str(checkpoint.resolve()), args.test.resolve(), max_prefixes
-    )
+    test_tag = _cache_key("test", str(checkpoint.resolve()), args.test.resolve(), max_prefixes)
     calibration_tag = _cache_key(
         "cal",
         str(checkpoint.resolve()),

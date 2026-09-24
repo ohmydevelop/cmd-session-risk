@@ -19,7 +19,10 @@ SESSIONS = [
 def _write_fixtures(tmp_path: Path) -> tuple[Path, Path]:
     data = tmp_path / "sessions.jsonl"
     scores = tmp_path / "scores.jsonl"
-    with data.open("w", encoding="utf-8") as data_handle, scores.open("w", encoding="utf-8") as score_handle:
+    with (
+        data.open("w", encoding="utf-8") as data_handle,
+        scores.open("w", encoding="utf-8") as score_handle,
+    ):
         for session_id, kind, label, probability in SESSIONS:
             record = {
                 "schema_version": "1.0",
@@ -102,7 +105,11 @@ def test_slice_breakdown_rejects_scores_for_unknown_sessions(tmp_path: Path) -> 
     with scores.open("a", encoding="utf-8") as handle:
         handle.write(
             json.dumps(
-                {"session_id": "session-does-not-exist", "command_index": 0, "malicious_probability": 0.5}
+                {
+                    "session_id": "session-does-not-exist",
+                    "command_index": 0,
+                    "malicious_probability": 0.5,
+                }
             )
             + "\n"
         )

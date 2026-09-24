@@ -40,7 +40,6 @@ from cmdrisk.data.holdout import (  # noqa: E402
     OOD_SLICE_NAME,
     is_temporal_holdout,
 )
-
 from cmdrisk.data.io import write_jsonl  # noqa: E402
 from cmdrisk.data.manifest import (  # noqa: E402
     load_data_sources,
@@ -103,17 +102,25 @@ SLICE_BY_KIND = {
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "configs" / "data_sources_v4.yaml")
+    parser.add_argument(
+        "--config", type=Path, default=PROJECT_ROOT / "configs" / "data_sources_v4.yaml"
+    )
     parser.add_argument("--raw-dir", type=Path, default=PROJECT_ROOT / "data" / "raw")
-    parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "data" / "processed" / "v4")
+    parser.add_argument(
+        "--output-dir", type=Path, default=PROJECT_ROOT / "data" / "processed" / "v4"
+    )
     parser.add_argument(
         "--source",
         action="append",
         default=[],
         help="override a source path, given as ID=PATH (repeatable)",
     )
-    parser.add_argument("--total", type=int, default=58_000, help="target base session count before holdout")
-    parser.add_argument("--quota", default=None, help="bucket=ratio,... overriding the v4 default quota")
+    parser.add_argument(
+        "--total", type=int, default=58_000, help="target base session count before holdout"
+    )
+    parser.add_argument(
+        "--quota", default=None, help="bucket=ratio,... overriding the v4 default quota"
+    )
     parser.add_argument("--jaccard-threshold", type=float, default=0.9)
     parser.add_argument("--max-family-fraction", type=float, default=0.0025)
     parser.add_argument("--minimum-family-cap", type=int, default=50)
@@ -147,7 +154,9 @@ def _parse_quota(value: str | None) -> dict[str, float]:
     return quota
 
 
-def _resolve_paths(args: argparse.Namespace, configured: dict[str, dict[str, Any]]) -> dict[str, Path]:
+def _resolve_paths(
+    args: argparse.Namespace, configured: dict[str, dict[str, Any]]
+) -> dict[str, Path]:
     overrides: dict[str, Path] = {}
     for item in args.source:
         if "=" not in item:
@@ -164,7 +173,9 @@ def _resolve_paths(args: argparse.Namespace, configured: dict[str, dict[str, Any
             continue
         relative = SOURCE_PATHS.get(source_id)
         if relative is None:
-            raise SystemExit(f"no raw path is declared for source {source_id!r}; pass --source {source_id}=PATH")
+            raise SystemExit(
+                f"no raw path is declared for source {source_id!r}; pass --source {source_id}=PATH"
+            )
         candidate = args.raw_dir / relative
         if not candidate.exists():
             raise SystemExit(f"raw path for {source_id!r} does not exist: {candidate}")
@@ -207,18 +218,16 @@ def _cap32_counts(prepared: list[Any]) -> dict[str, dict[str, int]]:
     for record in prepared:
         split = str(record.split)
         label = record.label
-        evidence = [
-            int(index)
-            for values in label.technique_evidence.values()
-            for index in values
-        ]
+        evidence = [int(index) for values in label.technique_evidence.values() for index in values]
         selected = select_prefix_indices(
             len(record.commands),
             max_prefixes=32,
             first_evidence_index=label.first_evidence_index,
             evidence_indices=evidence,
         )
-        bucket = totals.setdefault(split, {"sessions": 0, "cap32_prefixes": 0, "malicious_prefixes": 0})
+        bucket = totals.setdefault(
+            split, {"sessions": 0, "cap32_prefixes": 0, "malicious_prefixes": 0}
+        )
         bucket["sessions"] += 1
         bucket["cap32_prefixes"] += len(selected)
         bucket["malicious_prefixes"] += sum(
@@ -239,8 +248,17 @@ def main() -> int:
 
     print(f"v4 sources: {len(paths)} session corpora (skipping {sorted(SKIP_ADAPTERS)})")
     if args.dry_run:
-        print(json.dumps({"sources": {k: str(v) for k, v in paths.items()}, "total": args.total,
-                          "quota": quota, "output_dir": str(args.output_dir)}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "sources": {k: str(v) for k, v in paths.items()},
+                    "total": args.total,
+                    "quota": quota,
+                    "output_dir": str(args.output_dir),
+                },
+                indent=2,
+            )
+        )
         return 0
 
     print("ingesting source records ...")
@@ -325,7 +343,10 @@ def main() -> int:
             new_total = int(total * (1.0 - args.quota_retry_step))
             if new_total < 1000 or attempts > 40:
                 raise
-            print(f"  strict quota unmet at total={total} ({exc}); retrying at total={new_total}", flush=True)
+            print(
+                f"  strict quota unmet at total={total} ({exc}); retrying at total={new_total}",
+                flush=True,
+            )
             total = new_total
     print(f"prepared {len(prepared)} sessions (base target={total}, attempts={attempts})")
 
@@ -348,13 +369,20 @@ def main() -> int:
             for record in prepared
             if record.meta.get("evaluation_slice")
         }
-        | {SLICE_BY_KIND[str(r.source.kind)] for r in prepared if str(r.source.kind) in SLICE_BY_KIND}
+        | {
+            SLICE_BY_KIND[str(r.source.kind)]
+            for r in prepared
+            if str(r.source.kind) in SLICE_BY_KIND
+        }
     )
     for slice_name in slice_names:
         members = [
             record
             for record in prepared
-            if str(record.meta.get("evaluation_slice") or SLICE_BY_KIND.get(str(record.source.kind))) == slice_name
+            if str(
+                record.meta.get("evaluation_slice") or SLICE_BY_KIND.get(str(record.source.kind))
+            )
+            == slice_name
         ]
         if not members:
             continue
@@ -363,7 +391,9 @@ def main() -> int:
         slice_files.append(path)
     missing = {OOD_SLICE_NAME, "synthetic_stress"} - {p.stem for p in slice_files}
     if missing:
-        raise SystemExit("v4 corpus is missing required evaluation slice(s): " + ", ".join(sorted(missing)))
+        raise SystemExit(
+            "v4 corpus is missing required evaluation slice(s): " + ", ".join(sorted(missing))
+        )
 
     cap32 = _cap32_counts(prepared)
     report = provenance_report(
@@ -407,7 +437,10 @@ def main() -> int:
 
     output_files = [output_dir / f"{s}.jsonl" for s in ("train", "dev", "test")]
     output_files += slice_files
-    output_files += [output_dir / "reports" / "provenance.json", output_dir / "reports" / "prepare_state.json"]
+    output_files += [
+        output_dir / "reports" / "provenance.json",
+        output_dir / "reports" / "prepare_state.json",
+    ]
     write_sha256_manifest(output_files, output_dir / "reports" / "SHA256SUMS", root=output_dir)
 
     by_kind = Counter(str(r.source.kind) for r in prepared)

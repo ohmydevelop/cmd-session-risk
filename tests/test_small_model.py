@@ -38,9 +38,7 @@ def _tiny_config(
         hidden_dropout_prob=0.0,
         attention_probs_dropout_prob=0.0,
         num_tactics=len(vocabulary.tactics),
-        num_techniques=(
-            len(vocabulary.techniques) if num_techniques is None else num_techniques
-        ),
+        num_techniques=(len(vocabulary.techniques) if num_techniques is None else num_techniques),
         risk_dropout=0.0,
         label_vocabulary=vocabulary.to_dict(),
     )

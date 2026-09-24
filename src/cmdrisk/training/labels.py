@@ -114,9 +114,7 @@ class LabelVocabulary:
 
         item = _as_mapping(label)
         is_malicious = (
-            bool(malicious)
-            if malicious is not None
-            else bool(int(item.get("malicious", 0)))
+            bool(malicious) if malicious is not None else bool(int(item.get("malicious", 0)))
         )
         if not is_malicious:
             return LabelTarget(0.0, (0.0,) * len(self.tactics), (0.0,) * len(self.techniques))
@@ -127,9 +125,7 @@ class LabelVocabulary:
         if command_index < int(first_evidence):
             return LabelTarget(0.0, (0.0,) * len(self.tactics), (0.0,) * len(self.techniques))
 
-        declared_techniques = {
-            str(value).upper() for value in item.get("techniques", ())
-        }
+        declared_techniques = {str(value).upper() for value in item.get("techniques", ())}
         evidence_raw = item.get("technique_evidence", {}) or {}
         evidence: dict[str, list[int]] = {}
         for technique, indices in _as_mapping(evidence_raw).items():
@@ -160,9 +156,7 @@ class LabelVocabulary:
                 active_tactics.update(declared_tactics)
 
         tactic_values = [1.0 if item in active_tactics else 0.0 for item in self.tactics]
-        technique_values = [
-            1.0 if item in active_techniques else 0.0 for item in self.techniques
-        ]
+        technique_values = [1.0 if item in active_techniques else 0.0 for item in self.techniques]
         return LabelTarget(
             1.0,
             tuple(tactic_values),

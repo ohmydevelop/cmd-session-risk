@@ -25,9 +25,10 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -82,7 +83,9 @@ def _parse_source_limits(values: list[str]) -> dict[str, int]:
 def _input_fingerprint(paths: Iterable[Path]) -> str:
     digest = hashlib.sha256()
     for path in sorted(set(paths), key=lambda item: str(item)):
-        entries = sorted(item for item in path.rglob("*") if item.is_file()) if path.is_dir() else [path]
+        entries = (
+            sorted(item for item in path.rglob("*") if item.is_file()) if path.is_dir() else [path]
+        )
         for entry in entries:
             relative = entry.relative_to(path).as_posix() if path.is_dir() else path.name
             digest.update(f"{relative}\0".encode())
@@ -298,18 +301,30 @@ def _assign_families_sparse(
             )
         member_ids: list[str] = []
         for signature_index in signature_indices:
-            member_ids.extend(values[index].session_id for index in signature_groups[signatures[signature_index]])
+            member_ids.extend(
+                values[index].session_id for index in signature_groups[signatures[signature_index]]
+            )
         digest = hashlib.sha256("\x1f".join(sorted(member_ids)).encode("utf-8")).hexdigest()[:24]
         family_for_root[root] = explicit_ids[0] if explicit_ids else f"family:{digest}"
 
     return [
-        record.model_copy(update={"family_id": family_for_root[union_find.find(_signature_index_for_record(index, signature_groups, shingle_sets))]})
+        record.model_copy(
+            update={
+                "family_id": family_for_root[
+                    union_find.find(
+                        _signature_index_for_record(index, signature_groups, shingle_sets)
+                    )
+                ]
+            }
+        )
         for index, record in enumerate(values)
     ]
 
 
 def _signature_index_for_record(
-    record_index: int, signature_groups: dict[frozenset[str], list[int]], shingle_sets: list[frozenset[str]]
+    record_index: int,
+    signature_groups: dict[frozenset[str], list[int]],
+    shingle_sets: list[frozenset[str]],
 ) -> int:
     # This helper is replaced below by an inverse map in production; keeping it
     # isolated makes the main assignment code easier to audit.
@@ -461,7 +476,9 @@ def _assign_families_from_shingles(
         digest = hashlib.sha256("\x1f".join(member_ids).encode("utf-8")).hexdigest()[:24]
         family_for_root[root] = explicit_ids[0] if explicit_ids else f"family:{digest}"
     return [
-        record.model_copy(update={"family_id": family_for_root[union_find.find(signature_index[index])]})
+        record.model_copy(
+            update={"family_id": family_for_root[union_find.find(signature_index[index])]}
+        )
         for index, record in enumerate(values)
     ]
 
@@ -473,14 +490,18 @@ def _summarize(records: list[SessionRecord]) -> dict[str, Any]:
         "sessions": len(records),
         "families": len({record.family_id for record in records}),
         "labels": dict(sorted(Counter(int(record.label.malicious) for record in records).items())),
-        "source_kinds": dict(sorted(Counter(str(record.source.kind) for record in records).items())),
+        "source_kinds": dict(
+            sorted(Counter(str(record.source.kind) for record in records).items())
+        ),
         "sources": dict(sorted(Counter(record.source.name for record in records).items())),
         "command_count": {
             "min": min(commands, default=0),
             "max": max(commands, default=0),
             "mean": (sum(commands) / len(commands)) if commands else 0.0,
             "p50": float(lengths[len(lengths) // 2]) if lengths else 0.0,
-            "p95": float(lengths[min(len(lengths) - 1, int(len(lengths) * 0.95))]) if lengths else 0.0,
+            "p95": float(lengths[min(len(lengths) - 1, int(len(lengths) * 0.95))])
+            if lengths
+            else 0.0,
         },
     }
 
@@ -524,7 +545,9 @@ def _resolve_sources(
         raise SystemExit(f"unknown source id(s): {', '.join(sorted(unknown))}")
     unknown_limits = set(limits) - set(paths)
     if unknown_limits:
-        raise SystemExit(f"--source-limit references unknown source(s): {', '.join(sorted(unknown_limits))}")
+        raise SystemExit(
+            f"--source-limit references unknown source(s): {', '.join(sorted(unknown_limits))}"
+        )
     for source_id, path in paths.items():
         if not path.exists():
             raise SystemExit(f"source {source_id} does not exist: {path}")
@@ -533,11 +556,15 @@ def _resolve_sources(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "configs" / "data_sources.yaml")
+    parser.add_argument(
+        "--config", type=Path, default=PROJECT_ROOT / "configs" / "data_sources.yaml"
+    )
     parser.add_argument("--prepare-state", type=Path)
     parser.add_argument("--source", action="append", default=[], metavar="ID=PATH")
     parser.add_argument("--source-limit", action="append", default=[], metavar="ID=N")
-    parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "data" / "processed" / "common_eval")
+    parser.add_argument(
+        "--output-dir", type=Path, default=PROJECT_ROOT / "data" / "processed" / "common_eval"
+    )
     parser.add_argument("--exclude-dir", action="append", type=Path, default=[])
     parser.add_argument("--jaccard-threshold", type=float, default=0.9)
     parser.add_argument("--max-family-fraction", type=float, default=0.0025)
@@ -555,13 +582,23 @@ def main(argv: list[str] | None = None) -> int:
         PROJECT_ROOT / "data" / "processed" / "v3",
     ]
     if args.dry_run:
-        print(json.dumps({"output_dir": str(args.output_dir), "exclude_dirs": [str(p) for p in exclude_dirs]}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "output_dir": str(args.output_dir),
+                    "exclude_dirs": [str(p) for p in exclude_dirs],
+                },
+                indent=2,
+            )
+        )
         return 0
 
     configured = {str(item["id"]): item for item in load_data_sources(args.config)}
     source_paths, source_limits, default_limit = _resolve_sources(args, configured)
     if not source_paths:
-        raise SystemExit("at least one --source ID=PATH or --prepare-state with sources is required")
+        raise SystemExit(
+            "at least one --source ID=PATH or --prepare-state with sources is required"
+        )
     used_families, used_sessions, exclusion_audit = _load_used_lines(exclude_dirs)
 
     base_raw: list[SessionRecord] = []
@@ -655,7 +692,7 @@ def main(argv: list[str] | None = None) -> int:
         "schema": "cmdrisk.common_eval",
         "version": 1,
         "created_at_utc": datetime.now(UTC).isoformat(),
-        "description": "Family- and session-disjoint evaluation pool; no listed train/dev family or session was reused.",
+        "description": "Family- and session-disjoint evaluation pool; no listed train/dev family or session was reused.",  # noqa: E501
         "output": {
             "common_clean": str(clean_path.resolve().relative_to(PROJECT_ROOT)),
             "ood_2024": str(ood_path.resolve().relative_to(PROJECT_ROOT)),
@@ -694,19 +731,26 @@ def main(argv: list[str] | None = None) -> int:
         },
         "limitations": [
             "The clean common pool contains only family-disjoint leftovers and is malicious-heavy.",
-            "OOD contains malicious positives only, so ROC-AUC, PR-AUC, and FPR are undefined for that slice; use recall and detection delay only.",
-            "The clean benign count is small; report FPR with Wilson confidence intervals and treat it as auxiliary evidence.",
+            "OOD contains malicious positives only, so ROC-AUC, PR-AUC, and FPR are undefined for that slice; use recall and detection delay only.",  # noqa: E501
+            "The clean benign count is small; report FPR with Wilson confidence intervals and treat it as auxiliary evidence.",  # noqa: E501
         ],
     }
     reports = args.output_dir / "reports"
     reports.mkdir(parents=True, exist_ok=True)
     write_json_atomic(reports / "provenance.json", provenance)
     write_sha256_manifest([clean_path, ood_path], reports / "SHA256SUMS", root=args.output_dir)
-    print(json.dumps({
-        "common_clean": provenance["common_clean"],
-        "ood_2024": provenance["ood_2024"],
-        "output_dir": str(args.output_dir),
-    }, ensure_ascii=False, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "common_clean": provenance["common_clean"],
+                "ood_2024": provenance["ood_2024"],
+                "output_dir": str(args.output_dir),
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

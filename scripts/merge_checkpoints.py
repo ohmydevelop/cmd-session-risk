@@ -103,7 +103,9 @@ def _sha256(path: Path) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", action="append", default=[], help="checkpoint dir (repeatable)")
+    parser.add_argument(
+        "--checkpoint", action="append", default=[], help="checkpoint dir (repeatable)"
+    )
     parser.add_argument("--glob", default=None, help="shell-style glob of checkpoint dirs")
     parser.add_argument("--last", type=int, default=0, help="keep only the last N glob matches")
     parser.add_argument("--weights", default=None, help="comma-separated weights, default uniform")
@@ -121,7 +123,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.weights:
         weights = [float(part) for part in args.weights.split(",") if part.strip()]
         if len(weights) != len(checkpoints):
-            raise SystemExit(f"--weights has {len(weights)} values for {len(checkpoints)} checkpoints")
+            raise SystemExit(
+                f"--weights has {len(weights)} values for {len(checkpoints)} checkpoints"
+            )
     else:
         weights = [1.0] * len(checkpoints)
     total = sum(weights)
@@ -139,19 +143,25 @@ def main(argv: list[str] | None = None) -> int:
 
     state_dicts = [load_file(str(path)) for path in sources]
     reference = state_dicts[0]
-    for index, (state, source) in enumerate(zip(state_dicts[1:], sources[1:], strict=True), start=2):
+    for _index, (state, source) in enumerate(
+        zip(state_dicts[1:], sources[1:], strict=True), start=2
+    ):
         if set(state) != set(reference):
             missing = sorted(set(reference) - set(state))[:5]
             extra = sorted(set(state) - set(reference))[:5]
             raise SystemExit(f"{source}: tensor set differs (missing={missing} extra={extra})")
         for key in reference:
             if state[key].shape != reference[key].shape:
-                raise SystemExit(f"{source}: {key} shape {tuple(state[key].shape)} != {tuple(reference[key].shape)}")
+                raise SystemExit(
+                    f"{source}: {key} shape {tuple(state[key].shape)} != {tuple(reference[key].shape)}"  # noqa: E501
+                )
             if state[key].dtype != reference[key].dtype:
-                raise SystemExit(f"{source}: {key} dtype {state[key].dtype} != {reference[key].dtype}")
+                raise SystemExit(
+                    f"{source}: {key} dtype {state[key].dtype} != {reference[key].dtype}"
+                )
         print(f"  tensor sets match: {source}")
 
-    averaged: dict[str, "torch.Tensor"] = {}
+    averaged: dict[str, torch.Tensor] = {}
     for key, tensor in reference.items():
         if not tensor.is_floating_point():
             # Integer/bool buffers cannot be averaged; take the first checkpoint's
@@ -188,7 +198,12 @@ def main(argv: list[str] | None = None) -> int:
             {"path": str(path), "weight": weight, "sha256": _sha256(source)}
             for path, source, weight in zip(checkpoints, sources, weights, strict=True)
         ],
-        "output": {"path": str(target), "sha256": _sha256(target), "tensors": len(averaged), "parameters": total_params},
+        "output": {
+            "path": str(target),
+            "sha256": _sha256(target),
+            "tensors": len(averaged),
+            "parameters": total_params,
+        },
         "sidecar_files_copied_from": str(checkpoints[0]),
         "sidecar_files": copied,
     }

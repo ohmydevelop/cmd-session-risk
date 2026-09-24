@@ -117,7 +117,9 @@ def _load_selected_scores(
     return session_scores, labels, kinds
 
 
-def _metrics(session_ids: list[str], scores: dict[str, float], labels: dict[str, int], threshold: float) -> dict:
+def _metrics(
+    session_ids: list[str], scores: dict[str, float], labels: dict[str, int], threshold: float
+) -> dict:
     targets = np.asarray([labels[sid] for sid in session_ids], dtype=np.int64)
     probabilities = np.asarray([scores[sid] for sid in session_ids], dtype=np.float64)
     return binary_classification_metrics(targets, probabilities, threshold=threshold)
@@ -126,7 +128,9 @@ def _metrics(session_ids: list[str], scores: dict[str, float], labels: dict[str,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True, help="Labelled session JSONL")
-    parser.add_argument("--scores", type=Path, required=True, help="Flat ONNX score JSONL for --data")
+    parser.add_argument(
+        "--scores", type=Path, required=True, help="Flat ONNX score JSONL for --data"
+    )
     parser.add_argument("--source-temperature", type=float, required=True)
     parser.add_argument("--target-temperature", type=float, required=True)
     parser.add_argument("--threshold", type=float, required=True)
@@ -165,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         "data": str(args.data),
         "scores": str(args.scores),
         "methodology": {
-            "session_decision": "max probability over the family-aware cap-32 prefixes >= threshold",
+            "session_decision": "max probability over the family-aware cap-32 prefixes >= threshold",  # noqa: E501
             "threshold": args.threshold,
             "source_temperature": args.source_temperature,
             "target_temperature": args.target_temperature,
@@ -192,14 +196,16 @@ def main(argv: list[str] | None = None) -> int:
         }
         report["groups"][name] = entry
         print(
-            f"{name:34s} n={entry['sessions']:6d} pos={entry['positives']:6d} neg={entry['negatives']:6d} "
+            f"{name:34s} n={entry['sessions']:6d} pos={entry['positives']:6d} neg={entry['negatives']:6d} "  # noqa: E501
             f"recall={metrics['recall']} fpr={metrics['fpr']}",
             file=sys.stderr,
         )
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.output.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         print(f"wrote {args.output}", file=sys.stderr)
     return 0
 

@@ -51,9 +51,7 @@ def test_shell_attack_evolution_adapters_handle_sessions_and_cowrie_events() -> 
         ShellAttackEvolutionAdapter().iter_records(FIXTURES / "shell_attack_evolution.json")
     )
     events = list(
-        ShellAttackEvolutionAdapter().iter_records(
-            FIXTURES / "shell_attack_evolution_cowrie.jsonl"
-        )
+        ShellAttackEvolutionAdapter().iter_records(FIXTURES / "shell_attack_evolution_cowrie.jsonl")
     )
 
     assert len(sessions) == 2
@@ -65,9 +63,7 @@ def test_shell_attack_evolution_adapters_handle_sessions_and_cowrie_events() -> 
         "T1222",
         "T1059",
     ]
-    assert [technique.split(".", 1)[0] for technique in sessions[1].label.techniques] == [
-        "T1053"
-    ]
+    assert [technique.split(".", 1)[0] for technique in sessions[1].label.techniques] == ["T1053"]
     assert len(events) == 1
     assert [event.cmd for event in events[0].commands] == ["uname -s -v -n -r -m", "id"]
     assert events[0].meta["cowrie_event_count"] == 2
@@ -129,9 +125,7 @@ def test_atomic_adapter_expands_linux_placeholders() -> None:
         "/tmp/payload.sh",
     ]
     assert records[0].label.techniques == ["T1059.004"]
-    assert [technique.split(".", 1)[0] for technique in records[0].label.techniques] == [
-        "T1059"
-    ]
+    assert [technique.split(".", 1)[0] for technique in records[0].label.techniques] == ["T1059"]
     assert records[0].meta["executor"] == "sh"
 
 
@@ -150,9 +144,7 @@ def test_script_repo_adapter_extracts_all_supported_file_types() -> None:
 def test_history_pool_adapter_marks_observed_and_synthetic_boundaries(tmp_path: Path) -> None:
     history = tmp_path / "bash.txt"
     history.write_text(
-        "pwd\nls -la\nexit\n"
-        + "\n".join(f"echo step-{index}" for index in range(30))
-        + "\n",
+        "pwd\nls -la\nexit\n" + "\n".join(f"echo step-{index}" for index in range(30)) + "\n",
         encoding="utf-8",
     )
 
@@ -162,8 +154,12 @@ def test_history_pool_adapter_marks_observed_and_synthetic_boundaries(tmp_path: 
     assert all(record.label.malicious == 0 for record in records)
     assert all(record.label.quality == "medium" for record in records)
 
-    observed = [record for record in records if record.meta["session_boundary"] == "real_exit_delimiter"]
-    synthetic = [record for record in records if record.meta["session_boundary"] == "synthetic_window"]
+    observed = [
+        record for record in records if record.meta["session_boundary"] == "real_exit_delimiter"
+    ]
+    synthetic = [
+        record for record in records if record.meta["session_boundary"] == "synthetic_window"
+    ]
 
     assert len(observed) == 1
     assert [event.cmd for event in observed[0].commands] == ["pwd", "ls -la"]

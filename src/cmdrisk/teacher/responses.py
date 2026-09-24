@@ -33,9 +33,8 @@ class TeacherLabelResponse(StrictResponse):
                 raise ValueError("technique_evidence entries require IDs and indices")
             if any(index < 0 for index in indices):
                 raise ValueError("technique evidence indices must be non-negative")
-            if (
-                self.first_evidence_index is not None
-                and any(index < self.first_evidence_index for index in indices)
+            if self.first_evidence_index is not None and any(
+                index < self.first_evidence_index for index in indices
             ):
                 raise ValueError("technique evidence cannot precede first_evidence_index")
         return self
@@ -99,9 +98,8 @@ class MaliciousValidationResponse(StrictResponse):
                 raise ValueError("technique_evidence entries require IDs and indices")
             if any(index < 0 for index in indices):
                 raise ValueError("technique evidence indices must be non-negative")
-            if (
-                self.first_evidence_index is not None
-                and any(index < self.first_evidence_index for index in indices)
+            if self.first_evidence_index is not None and any(
+                index < self.first_evidence_index for index in indices
             ):
                 raise ValueError("technique evidence cannot precede first_evidence_index")
         return self
@@ -134,7 +132,5 @@ class ProxyReviewResponse(StrictResponse):
                 if any(index < 0 for index in indices):
                     raise ValueError("technique evidence indices must be non-negative")
                 if any(index < self.first_evidence_index for index in indices):
-                    raise ValueError(
-                        "technique evidence cannot precede first_evidence_index"
-                    )
+                    raise ValueError("technique evidence cannot precede first_evidence_index")
         return self

@@ -44,9 +44,7 @@ class StreamingFormatError(RuntimeError):
 
 
 @contextmanager
-def open_json_text(
-    path: str | Path, *, password: str | None = None
-) -> Iterator[io.TextIOBase]:
+def open_json_text(path: str | Path, *, password: str | None = None) -> Iterator[io.TextIOBase]:
     """Open a JSON document from a plain path or an (optionally encrypted) ZIP."""
 
     source = Path(path)
@@ -60,9 +58,7 @@ def open_json_text(
             try:
                 raw = archive.open(name, pwd=password_bytes)
             except RuntimeError as exc:  # pragma: no cover - depends on archive
-                raise StreamingFormatError(
-                    f"could not decrypt {name} in {source}: {exc}"
-                ) from exc
+                raise StreamingFormatError(f"could not decrypt {name} in {source}: {exc}") from exc
             with raw, io.TextIOWrapper(raw, encoding="utf-8-sig", newline="") as text:
                 yield text
         return
@@ -244,9 +240,7 @@ def iter_zip_member_texts(
             try:
                 raw = archive.open(name, pwd=password_bytes)
             except RuntimeError as exc:  # pragma: no cover - depends on archive
-                raise StreamingFormatError(
-                    f"could not decrypt {name} in {source}: {exc}"
-                ) from exc
+                raise StreamingFormatError(f"could not decrypt {name} in {source}: {exc}") from exc
             with raw, io.TextIOWrapper(raw, encoding="utf-8-sig", newline="") as text:
                 yield name, text
 
@@ -305,8 +299,7 @@ def shingle_hashes(
         grams = ["\u001f".join(tokens)]
     else:
         grams = [
-            "\u001f".join(tokens[index : index + ngram])
-            for index in range(len(tokens) - ngram + 1)
+            "\u001f".join(tokens[index : index + ngram]) for index in range(len(tokens) - ngram + 1)
         ]
     values = np.fromiter((hash64(gram) for gram in grams), dtype=np.uint64, count=len(grams))
     return np.unique(values)
@@ -315,7 +308,7 @@ def shingle_hashes(
 def _permutation_parameters(num_perm: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     mask = 1 << 63
-    multiply = (rng.integers(0, mask, size=num_perm, dtype=np.uint64) | np.uint64(1))
+    multiply = rng.integers(0, mask, size=num_perm, dtype=np.uint64) | np.uint64(1)
     add = rng.integers(0, mask, size=num_perm, dtype=np.uint64)
     return multiply, add
 
@@ -413,9 +406,9 @@ def candidate_pairs(
             )
     if not left_parts:
         return np.empty((0, 2), dtype=np.int64), skipped
-    pairs = np.stack(
-        [np.concatenate(left_parts), np.concatenate(right_parts)], axis=1
-    ).astype(np.int64, copy=False)
+    pairs = np.stack([np.concatenate(left_parts), np.concatenate(right_parts)], axis=1).astype(
+        np.int64, copy=False
+    )
     return pairs, skipped
 
 

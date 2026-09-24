@@ -35,15 +35,14 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 import numpy as np  # noqa: E402
-
-from cmdrisk.training.metrics import binary_classification_metrics  # noqa: E402
 from evaluate_recalibrated_onnx_scores import (  # noqa: E402
     _join_prefixes,
     _load_scores,
     _prefix_metrics,
     _session_scores,
-    build_parser as _eval_parser,
 )
+
+from cmdrisk.training.metrics import binary_classification_metrics  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -94,7 +93,7 @@ def _kofn_matrices(joined: dict[str, Any]) -> tuple[dict[str, float], dict[str, 
     return the sorted per-session prefix scores, then threshold them on demand.
     """
     counts: dict[str, list[float]] = {}
-    for session_id, index, probability in zip(
+    for session_id, _index, probability in zip(
         joined["session_ids"], joined["prefix_indices"], joined["probabilities"], strict=True
     ):
         counts.setdefault(session_id, []).append(float(probability))
@@ -110,9 +109,7 @@ def _kofn_decision(
     }
 
 
-def _rates_from_decisions(
-    labels: dict[str, int], decisions: dict[str, bool]
-) -> dict[str, Any]:
+def _rates_from_decisions(labels: dict[str, int], decisions: dict[str, bool]) -> dict[str, Any]:
     tp = fn = fp = tn = 0
     for session_id, label in labels.items():
         decision = decisions.get(session_id, False)
@@ -166,7 +163,9 @@ def main(argv: list[str] | None = None) -> int:
     dev_k = _kofn_matrices(joined_dev)
     test_k = _kofn_matrices(joined_test)
     dev_labels_k = {s: int(joined_dev["session_labels"][s]) for s in joined_dev["session_labels"]}
-    test_labels_k = {s: int(joined_test["session_labels"][s]) for s in joined_test["session_labels"]}
+    test_labels_k = {
+        s: int(joined_test["session_labels"][s]) for s in joined_test["session_labels"]
+    }
 
     grid = [float(part) for part in args.session_fpr_grid.split(",") if part.strip()]
     rows: list[dict[str, Any]] = []

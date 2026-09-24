@@ -79,9 +79,7 @@ def _parse_command(value: Any, *, line_number: int) -> tuple[str, float | None]:
         raise ValueError(f"line {line_number}: command must be a string or object")
     if not isinstance(cmd, str) or not cmd.strip():
         raise ValueError(f"line {line_number}: command must contain a non-empty cmd")
-    if dt is not None and (
-        isinstance(dt, bool) or not isinstance(dt, (int, float)) or dt < 0
-    ):
+    if dt is not None and (isinstance(dt, bool) or not isinstance(dt, (int, float)) or dt < 0):
         raise ValueError(f"line {line_number}: dt must be a non-negative number or null")
     return cmd, None if dt is None else float(dt)
 
@@ -152,9 +150,7 @@ def _score_batches(
             if len(batch) <= 1 or depth >= MAX_BATCH_SPLIT_DEPTH:
                 raise
             middle = len(batch) // 2
-            _score_batches(
-                scorer, [batch[:middle], batch[middle:]], entries, depth=depth + 1
-            )
+            _score_batches(scorer, [batch[:middle], batch[middle:]], entries, depth=depth + 1)
             continue
         for item, entry in zip(batch, scored, strict=True):
             entries[(item[0], item[1])] = entry
@@ -260,8 +256,7 @@ def score(
             item_width = item[3]
             next_width = max(width, item_width)
             if current and (
-                len(current) >= batch_size
-                or next_width * (len(current) + 1) > max_batch_tokens
+                len(current) >= batch_size or next_width * (len(current) + 1) > max_batch_tokens
             ):
                 batches.append(current)
                 current, width = [], 0

@@ -15,9 +15,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "model"
 
 
 def _tiny_model() -> ModernBertForCommandRisk:
-    values = json.loads(
-        (FIXTURES / "tiny_modernbert_config.json").read_text(encoding="utf-8")
-    )
+    values = json.loads((FIXTURES / "tiny_modernbert_config.json").read_text(encoding="utf-8"))
     vocabulary = LabelVocabulary.canonical(["T1082", "T1105"])
     config = ModernBertRiskConfig(
         **values,

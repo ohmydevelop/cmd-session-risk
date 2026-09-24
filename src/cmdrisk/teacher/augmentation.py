@@ -117,9 +117,7 @@ class MaliciousAugmenter:
         if parent.label.malicious != 1 or parent.label.first_evidence_index is None:
             raise AugmentationError("augmentation parent must have a malicious consensus label")
         if not parent.label.technique_evidence:
-            raise AugmentationError(
-                "augmentation parent must include per-technique evidence"
-            )
+            raise AugmentationError("augmentation parent must include per-technique evidence")
         if count < 8 or count > 12:
             raise AugmentationError("count must be between 8 and 12")
 
@@ -427,8 +425,7 @@ def _source_technique_evidence(
             {
                 int(index)
                 for index in raw_indices
-                if isinstance(index, int)
-                and first_evidence <= index < command_count
+                if isinstance(index, int) and first_evidence <= index < command_count
             }
         )
         if valid:
@@ -445,11 +442,7 @@ def _consensus_technique_evidence(
     indices: dict[str, set[int]] = {}
     for group in groups:
         for technique, values in group.items():
-            valid = {
-                index
-                for index in values
-                if first_evidence <= index < command_count
-            }
+            valid = {index for index in values if first_evidence <= index < command_count}
             if not valid:
                 continue
             counts[technique] += 1
@@ -477,8 +470,7 @@ def _malicious_vote_payload(
         "provenance": "raw_model_vote",
         "first_evidence_index": first_evidence_index,
         "technique_evidence": {
-            technique: list(indices)
-            for technique, indices in technique_evidence.items()
+            technique: list(indices) for technique, indices in technique_evidence.items()
         },
         "techniques": list(techniques),
         "confidence": confidence,

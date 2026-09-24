@@ -403,9 +403,7 @@ class OpenAICompatibleClient:
             },
         )
         if response.status_code == 429 or response.status_code >= 500:
-            raise ChatAPIError(
-                f"retryable HTTP {response.status_code}: {response.text[:500]}"
-            )
+            raise ChatAPIError(f"retryable HTTP {response.status_code}: {response.text[:500]}")
         if response.status_code >= 400:
             raise ChatAPIError(f"HTTP {response.status_code}: {response.text[:500]}")
         try:
@@ -414,9 +412,7 @@ class OpenAICompatibleClient:
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise SchemaValidationError("invalid chat-completions response envelope") from exc
         if isinstance(content, list):
-            content = "".join(
-                part.get("text", "") for part in content if isinstance(part, dict)
-            )
+            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
         if not isinstance(content, str):
             raise SchemaValidationError("chat response content must be a string")
         try:

@@ -79,9 +79,7 @@ def _distributed_barrier() -> None:
         torch.distributed.barrier()
 
 
-def _resize_model_to_tokenizer(
-    model: Any, tokenizer: CommandTokenizer
-) -> None:
+def _resize_model_to_tokenizer(model: Any, tokenizer: CommandTokenizer) -> None:
     """Match the embedding table to the marker-extended tokenizer vocabulary."""
 
     target_vocab_size = len(tokenizer.tokenizer)
@@ -121,9 +119,7 @@ def _stable_family_partition(
     for example in examples:
         (second if example.family_id in calibration_families else first).append(example)
 
-    if set(example.family_id for example in first) & set(
-        example.family_id for example in second
-    ):
+    if set(example.family_id for example in first) & set(example.family_id for example in second):
         raise AssertionError("calibration and selection families must be disjoint")
     return first, second
 
@@ -169,16 +165,12 @@ def _collect_logits(
             malicious_labels.append(labels["malicious"].numpy())
             tactic_labels.append(labels["tactics"].numpy())
             technique_labels.append(labels["techniques"].numpy())
-            batch_examples = dataset.examples[
-                offset : offset + len(batch["input_ids"])
-            ]
+            batch_examples = dataset.examples[offset : offset + len(batch["input_ids"])]
             session_ids.extend(example.session_id for example in batch_examples)
             prefix_indices.extend(example.prefix_index for example in batch_examples)
             command_counts.extend(example.command_count for example in batch_examples)
             source_kinds.extend(example.source_kind for example in batch_examples)
-            evaluation_slices.extend(
-                example.evaluation_slice for example in batch_examples
-            )
+            evaluation_slices.extend(example.evaluation_slice for example in batch_examples)
             offset += len(batch_examples)
     return {
         "malicious_logits": np.concatenate(malicious),
@@ -207,22 +199,10 @@ def _slice_metric_definitions(slice_metrics: dict[str, Any]) -> dict[str, bool]:
     has_sessions = positive_count + negative_count > 0
     has_malicious_sessions = int(detection_delay.get("malicious_sessions", 0)) > 0
     tactic_supported = (
-        int(
-            slice_metrics["tactic"].get(
-                f"heads_support_ge_{TACTIC_SUPPORT_FLOOR}"
-            )
-            or 0
-        )
-        > 0
+        int(slice_metrics["tactic"].get(f"heads_support_ge_{TACTIC_SUPPORT_FLOOR}") or 0) > 0
     )
     technique_supported = (
-        int(
-            slice_metrics["technique"].get(
-                f"heads_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
-            )
-            or 0
-        )
-        > 0
+        int(slice_metrics["technique"].get(f"heads_support_ge_{TECHNIQUE_SUPPORT_FLOOR}") or 0) > 0
     )
     both_classes = has_positives and has_negatives
     return {
@@ -252,25 +232,17 @@ def _make_slice_promotion(
         slice_metrics["malicious"],
         slice_metrics["detection_delay"],
         tactic_macro_f1=tactic[f"macro_f1_support_ge_{TACTIC_SUPPORT_FLOOR}"],
-        technique_macro_f1=technique[
-            f"macro_f1_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
-        ],
+        technique_macro_f1=technique[f"macro_f1_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"],
         tactic_macro_f1_all_heads=tactic["macro_f1_all"],
         tactic_macro_f1_support_ge_1=tactic["macro_f1_support_ge_1"],
-        tactic_macro_f1_support_ge_50=tactic[
-            f"macro_f1_support_ge_{TACTIC_SUPPORT_FLOOR}"
-        ],
-        tactic_heads_support_ge_50=tactic[
-            f"heads_support_ge_{TACTIC_SUPPORT_FLOOR}"
-        ],
+        tactic_macro_f1_support_ge_50=tactic[f"macro_f1_support_ge_{TACTIC_SUPPORT_FLOOR}"],
+        tactic_heads_support_ge_50=tactic[f"heads_support_ge_{TACTIC_SUPPORT_FLOOR}"],
         technique_macro_f1_all_heads=technique["macro_f1_all"],
         technique_macro_f1_support_ge_1=technique["macro_f1_support_ge_1"],
         technique_macro_f1_support_ge_50=technique[
             f"macro_f1_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
         ],
-        technique_heads_support_ge_50=technique[
-            f"heads_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
-        ],
+        technique_heads_support_ge_50=technique[f"heads_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"],
         require_proxy_audit=False,
     )
     definitions = _slice_metric_definitions(slice_metrics)
@@ -282,9 +254,7 @@ def _make_slice_promotion(
     metric_values = slice_promotion["metric_values"]
     precision = slice_metrics["malicious"].get("precision")
     metric_values["precision"] = (
-        float(precision)
-        if definitions["precision"] and precision is not None
-        else None
+        float(precision) if definitions["precision"] and precision is not None else None
     )
     for name in undefined_metrics:
         if name in metric_values:
@@ -292,13 +262,9 @@ def _make_slice_promotion(
         if name in slice_promotion["checks"]:
             slice_promotion["checks"][name] = True
     slice_promotion["missing_metrics"] = [
-        name
-        for name in slice_promotion["missing_metrics"]
-        if name not in undefined_metrics
+        name for name in slice_promotion["missing_metrics"] if name not in undefined_metrics
     ]
-    violations = [
-        name for name, passed in slice_promotion["checks"].items() if not passed
-    ]
+    violations = [name for name, passed in slice_promotion["checks"].items() if not passed]
     class_balance = _slice_class_balance(slice_metrics["malicious"])
     violations.extend(class_balance["violations"])
     slice_promotion["class_balance"] = class_balance
@@ -342,22 +308,16 @@ def _metrics(
     technique_ids: Sequence[str],
     proxy_audit_report: Any = None,
 ) -> dict[str, Any]:
-    malicious_probability = calibration.malicious_probabilities(
-        predictions["malicious_logits"]
-    )
+    malicious_probability = calibration.malicious_probabilities(predictions["malicious_logits"])
     malicious = binary_classification_metrics(
         predictions["malicious_labels"],
         malicious_probability,
         threshold=calibration.malicious_threshold,
     )
     tactic_probability = calibration.tactic_probabilities(predictions["tactic_logits"])
-    technique_probability = calibration.technique_probabilities(
-        predictions["technique_logits"]
-    )
+    technique_probability = calibration.technique_probabilities(predictions["technique_logits"])
     tactic_thresholds = [calibration.tactic_thresholds[item] for item in tactic_ids]
-    technique_thresholds = [
-        calibration.technique_thresholds[item] for item in technique_ids
-    ]
+    technique_thresholds = [calibration.technique_thresholds[item] for item in technique_ids]
     tactic = multilabel_metrics(
         predictions["tactic_labels"], tactic_probability, thresholds=tactic_thresholds
     )
@@ -375,8 +335,7 @@ def _metrics(
     )
     tactic_support = np.count_nonzero(predictions["tactic_labels"] > 0, axis=0)
     tactic_label_support = {
-        tactic_id: int(count)
-        for tactic_id, count in zip(tactic_ids, tactic_support, strict=True)
+        tactic_id: int(count) for tactic_id, count in zip(tactic_ids, tactic_support, strict=True)
     }
 
     slices: dict[str, dict[str, Any]] = {}
@@ -416,34 +375,24 @@ def _metrics(
         malicious,
         detection_delay,
         tactic_macro_f1=tactic[f"macro_f1_support_ge_{TACTIC_SUPPORT_FLOOR}"],
-        technique_macro_f1=technique[
-            f"macro_f1_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
-        ],
+        technique_macro_f1=technique[f"macro_f1_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"],
         tactic_macro_f1_all_heads=tactic["macro_f1_all"],
         tactic_macro_f1_support_ge_1=tactic["macro_f1_support_ge_1"],
-        tactic_macro_f1_support_ge_50=tactic[
-            f"macro_f1_support_ge_{TACTIC_SUPPORT_FLOOR}"
-        ],
-        tactic_heads_support_ge_50=tactic[
-            f"heads_support_ge_{TACTIC_SUPPORT_FLOOR}"
-        ],
+        tactic_macro_f1_support_ge_50=tactic[f"macro_f1_support_ge_{TACTIC_SUPPORT_FLOOR}"],
+        tactic_heads_support_ge_50=tactic[f"heads_support_ge_{TACTIC_SUPPORT_FLOOR}"],
         technique_macro_f1_all_heads=technique["macro_f1_all"],
         technique_macro_f1_support_ge_1=technique["macro_f1_support_ge_1"],
         technique_macro_f1_support_ge_50=technique[
             f"macro_f1_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
         ],
-        technique_heads_support_ge_50=technique[
-            f"heads_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"
-        ],
+        technique_heads_support_ge_50=technique[f"heads_support_ge_{TECHNIQUE_SUPPORT_FLOOR}"],
         proxy_audit_report=proxy_audit_report,
         tactic_label_support=tactic_label_support,
         tactic_ids=tactic_ids,
         require_tactic_label_coverage=True,
     )
     promotion["required_evaluation_slices"] = sorted(REQUIRED_EVALUATION_SLICES)
-    promotion["missing_evaluation_slices"] = sorted(
-        REQUIRED_EVALUATION_SLICES - set(slices)
-    )
+    promotion["missing_evaluation_slices"] = sorted(REQUIRED_EVALUATION_SLICES - set(slices))
     slice_checks: dict[str, dict[str, Any]] = {}
     for slice_name in sorted(REQUIRED_EVALUATION_SLICES):
         slice_metrics = slices.get(slice_name)
@@ -457,9 +406,7 @@ def _metrics(
             }
             continue
         slice_checks[slice_name] = _make_slice_promotion(slice_metrics)
-    promotion["checks"]["evaluation_slices_present"] = not promotion[
-        "missing_evaluation_slices"
-    ]
+    promotion["checks"]["evaluation_slices_present"] = not promotion["missing_evaluation_slices"]
     promotion["checks"]["evaluation_slices_passed"] = all(
         bool(item.get("passed")) for item in slice_checks.values()
     )
@@ -583,7 +530,8 @@ def run_training(config: TrainingRunConfig) -> Path:
             vocabulary = LabelVocabulary.load(checkpoint_vocab)
         else:
             raise FileNotFoundError(
-                f"--base-checkpoint missing label_vocabulary.json: {checkpoint_vocab}")
+                f"--base-checkpoint missing label_vocabulary.json: {checkpoint_vocab}"
+            )
     else:
         vocabulary = LabelVocabulary.build(
             train_records,
@@ -593,9 +541,7 @@ def run_training(config: TrainingRunConfig) -> Path:
     if _is_main_process():
         vocabulary.save(output_dir / "label_vocabulary.json")
     _distributed_barrier()
-    train_examples = expand_records(
-        train_records, vocabulary, max_prefixes=config.max_prefixes
-    )
+    train_examples = expand_records(train_records, vocabulary, max_prefixes=config.max_prefixes)
     dev_examples = expand_records(dev_records, vocabulary, max_prefixes=config.max_prefixes)
     test_examples = expand_records(test_records, vocabulary, max_prefixes=config.max_prefixes)
     selection_examples, calibration_examples = _stable_family_partition(
@@ -617,9 +563,7 @@ def run_training(config: TrainingRunConfig) -> Path:
         cap=config.pos_weight_cap,
     )
 
-    short_batch = choose_batch_config(
-        vram_gb=vram_gb, phase="short", world_size=world_size
-    )
+    short_batch = choose_batch_config(vram_gb=vram_gb, phase="short", world_size=world_size)
     short_tokenizer = CommandTokenizer.from_pretrained(
         config.model_name,
         max_length=config.short_max_length,
@@ -660,9 +604,7 @@ def run_training(config: TrainingRunConfig) -> Path:
     final_tokenizer = short_tokenizer
     final_model = model
     if not config.skip_long_phase:
-        long_batch = choose_batch_config(
-            vram_gb=vram_gb, phase="long", world_size=world_size
-        )
+        long_batch = choose_batch_config(vram_gb=vram_gb, phase="long", world_size=world_size)
         final_tokenizer = CommandTokenizer.from_pretrained(
             config.model_name,
             max_length=config.long_max_length,
@@ -698,9 +640,7 @@ def run_training(config: TrainingRunConfig) -> Path:
     final_model.to(device)
     proxy_audit_report: Any = None
     if config.proxy_audit_path:
-        proxy_audit_report = json.loads(
-            Path(config.proxy_audit_path).read_text(encoding="utf-8")
-        )
+        proxy_audit_report = json.loads(Path(config.proxy_audit_path).read_text(encoding="utf-8"))
     calibration, metrics = _calibrate_and_evaluate(
         model=final_model,
         tokenizer=final_tokenizer,

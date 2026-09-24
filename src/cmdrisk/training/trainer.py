@@ -80,9 +80,7 @@ def build_training_arguments(
         "remove_unused_columns": False,
         "label_names": ["labels"],
         "gradient_checkpointing": use_long_phase,
-        "gradient_checkpointing_kwargs": {"use_reentrant": False}
-        if use_long_phase
-        else None,
+        "gradient_checkpointing_kwargs": {"use_reentrant": False} if use_long_phase else None,
         "report_to": [] if config.report_to == "none" else [config.report_to],
         "ddp_find_unused_parameters": False,
         "dataloader_pin_memory": torch.cuda.is_available(),

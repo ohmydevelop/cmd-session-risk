@@ -148,9 +148,7 @@ def test_evaluate_validation_flags_missing_sessions(tmp_path: Path) -> None:
         ],
     )
 
-    result = _run(
-        "--scores", str(scores_path), "--test", str(test_path), "--threshold", "0.5"
-    )
+    result = _run("--scores", str(scores_path), "--test", str(test_path), "--threshold", "0.5")
     assert result.returncode == 1
     report = json.loads(result.stdout)
     assert report["coverage"]["missing_sessions"] == ["s-b"]
@@ -172,9 +170,7 @@ def test_evaluate_validation_rejects_unknown_sessions(tmp_path: Path) -> None:
         ],
     )
 
-    result = _run(
-        "--scores", str(scores_path), "--test", str(test_path), "--threshold", "0.5"
-    )
+    result = _run("--scores", str(scores_path), "--test", str(test_path), "--threshold", "0.5")
     assert result.returncode != 0
     assert "unknown sessions" in result.stderr
 

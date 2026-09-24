@@ -127,9 +127,7 @@ def _load_predictions(path: Path) -> dict[str, dict[str, Any]]:
         session_id = row.get("session_id")
         if not session_id:
             raise ValueError(f"{path}: prediction missing session_id")
-        predictions[session_id] = {
-            key: value for key, value in row.items() if key != "session_id"
-        }
+        predictions[session_id] = {key: value for key, value in row.items() if key != "session_id"}
     return predictions
 
 
@@ -156,8 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         if missing:
             raise ValueError(f"{len(missing)} cases have no prediction, e.g. {missing[0]}")
         cases = [
-            case.model_copy(update={"prediction": predictions[case.session_id]})
-            for case in cases
+            case.model_copy(update={"prediction": predictions[case.session_id]}) for case in cases
         ]
 
     reviewer_ids = REVIEWER_IDS + tuple(args.tiebreak_reviewer_id)
@@ -195,8 +192,7 @@ def main(argv: list[str] | None = None) -> int:
             else None,
             "cases_sha256": hashlib.sha256(args.cases.read_bytes()).hexdigest(),
             "reviewers": [
-                {**record, "label": labels.get(record["reviewer"])}
-                for record in provenance
+                {**record, "label": labels.get(record["reviewer"])} for record in provenance
             ],
             "blind_payload_fields": sorted(reviewer_payload({"session_id": "", "commands": []})),
             "prediction_source": str(args.predictions) if args.predictions else None,

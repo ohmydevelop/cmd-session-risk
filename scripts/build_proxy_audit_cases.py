@@ -62,9 +62,9 @@ def main(argv: list[str] | None = None) -> int:
     if not records:
         raise SystemExit(f"no sessions in {args.input}")
 
-    chosen = _select(
-        records, malicious=True, limit=args.num_malicious, seed=args.seed
-    ) + _select(records, malicious=False, limit=args.num_benign, seed=args.seed)
+    chosen = _select(records, malicious=True, limit=args.num_malicious, seed=args.seed) + _select(
+        records, malicious=False, limit=args.num_benign, seed=args.seed
+    )
     # Interleave so every chunk holds a comparable mix; ordering is deterministic.
     chosen.sort(key=lambda item: _rank(args.seed, item["session_id"]))
 
@@ -74,8 +74,7 @@ def main(argv: list[str] | None = None) -> int:
 
     cases: list[AuditCase] = []
     chunks: list[list[dict]] = [
-        chosen[index : index + args.chunk_size]
-        for index in range(0, len(chosen), args.chunk_size)
+        chosen[index : index + args.chunk_size] for index in range(0, len(chosen), args.chunk_size)
     ]
     for index, chunk in enumerate(chunks):
         payload_lines: list[str] = []

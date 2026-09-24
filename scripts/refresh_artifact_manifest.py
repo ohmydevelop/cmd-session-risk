@@ -50,7 +50,6 @@ def _collect_files(root: Path) -> list[str]:
     )
 
 
-
 def _runtime_model_version(root: Path) -> str | None:
     """Return ``model_version`` from ``runtime_config.json`` when available."""
 
@@ -104,9 +103,7 @@ def main(argv: list[str] | None = None) -> int:
             "format": "onnx",
         }
     else:
-        raise SystemExit(
-            f"no manifest at {manifest_path}; pass --create to build a minimal one"
-        )
+        raise SystemExit(f"no manifest at {manifest_path}; pass --create to build a minimal one")
 
     if not (root / args.fp32_model).is_file():
         raise SystemExit(f"fp32 model not found: {root / args.fp32_model}")
@@ -129,11 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     resolved_version = pinned or runtime_version or manifest.get("model_version")
     recorded = manifest.get("model_version")
-    if (
-        isinstance(recorded, str)
-        and runtime_version is not None
-        and recorded != runtime_version
-    ):
+    if isinstance(recorded, str) and runtime_version is not None and recorded != runtime_version:
         raise SystemExit(
             "manifest model_version "
             f"{recorded!r} disagrees with runtime_config.json {runtime_version!r}"

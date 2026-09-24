@@ -135,12 +135,8 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("data must contain dev and test splits")
 
     vocabulary = LabelVocabulary.load(run_dir / "label_vocabulary.json")
-    dev_examples = expand_records(
-        dev_records, vocabulary, max_prefixes=config.max_prefixes
-    )
-    test_examples = expand_records(
-        test_records, vocabulary, max_prefixes=config.max_prefixes
-    )
+    dev_examples = expand_records(dev_records, vocabulary, max_prefixes=config.max_prefixes)
+    test_examples = expand_records(test_records, vocabulary, max_prefixes=config.max_prefixes)
     _selection, calibration_examples = _stable_family_partition(
         dev_examples, fraction=0.5, seed=config.seed
     )

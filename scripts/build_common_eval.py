@@ -71,7 +71,9 @@ def _parse_source_limits(values: list[str]) -> dict[str, int]:
 def _input_fingerprint(paths: list[Path]) -> str:
     digest = hashlib.sha256()
     for path in sorted(paths, key=lambda item: str(item)):
-        entries = sorted(item for item in path.rglob("*") if item.is_file()) if path.is_dir() else [path]
+        entries = (
+            sorted(item for item in path.rglob("*") if item.is_file()) if path.is_dir() else [path]
+        )
         for entry in entries:
             relative = entry.relative_to(path).as_posix() if path.is_dir() else path.name
             digest.update(f"{relative}\0".encode())
@@ -83,7 +85,11 @@ def _input_fingerprint(paths: list[Path]) -> str:
 
 
 def _read_records(path: Path) -> list[SessionRecord]:
-    return [ SessionRecord.model_validate(json.loads(line)) for line in path.read_text(encoding="utf-8").splitlines() if line.strip() ]
+    return [
+        SessionRecord.model_validate(json.loads(line))
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _load_used_families(exclude_dirs: list[Path]) -> tuple[set[str], dict[str, dict[str, Any]]]:
@@ -114,19 +120,25 @@ def _summarize(records: list[SessionRecord]) -> dict[str, Any]:
         "sessions": len(records),
         "families": len({record.family_id for record in records}),
         "labels": dict(sorted(Counter(int(record.label.malicious) for record in records).items())),
-        "source_kinds": dict(sorted(Counter(str(record.source.kind) for record in records).items())),
+        "source_kinds": dict(
+            sorted(Counter(str(record.source.kind) for record in records).items())
+        ),
         "sources": dict(sorted(Counter(record.source.name for record in records).items())),
         "command_count": {
             "min": min(commands, default=0),
             "max": max(commands, default=0),
             "mean": (sum(commands) / len(commands)) if commands else 0.0,
             "p50": float(sorted(commands)[len(commands) // 2]) if commands else 0,
-            "p95": float(sorted(commands)[min(len(commands) - 1, int(len(commands) * 0.95))]) if commands else 0,
+            "p95": float(sorted(commands)[min(len(commands) - 1, int(len(commands) * 0.95))])
+            if commands
+            else 0,
         },
     }
 
 
-def _deduplicate(records: list[SessionRecord], *, args: argparse.Namespace) -> tuple[list[SessionRecord], list[SessionRecord]]:
+def _deduplicate(
+    records: list[SessionRecord], *, args: argparse.Namespace
+) -> tuple[list[SessionRecord], list[SessionRecord]]:
     exact = exact_deduplicate(records)
     deduplicated = family_aware_deduplicate(
         exact,
@@ -140,10 +152,14 @@ def _deduplicate(records: list[SessionRecord], *, args: argparse.Namespace) -> t
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "configs" / "data_sources.yaml")
+    parser.add_argument(
+        "--config", type=Path, default=PROJECT_ROOT / "configs" / "data_sources.yaml"
+    )
     parser.add_argument("--source", action="append", default=[], metavar="ID=PATH")
     parser.add_argument("--source-limit", action="append", default=[], metavar="ID=N")
-    parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "data" / "processed" / "common_eval")
+    parser.add_argument(
+        "--output-dir", type=Path, default=PROJECT_ROOT / "data" / "processed" / "common_eval"
+    )
     parser.add_argument("--exclude-dir", action="append", type=Path, default=[])
     parser.add_argument("--jaccard-threshold", type=float, default=0.9)
     parser.add_argument("--max-family-fraction", type=float, default=0.0025)
@@ -161,7 +177,15 @@ def main(argv: list[str] | None = None) -> int:
         PROJECT_ROOT / "data" / "processed" / "v3",
     ]
     if args.dry_run:
-        print(json.dumps({"output_dir": str(args.output_dir), "exclude_dirs": [str(p) for p in exclude_dirs]}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "output_dir": str(args.output_dir),
+                    "exclude_dirs": [str(p) for p in exclude_dirs],
+                },
+                indent=2,
+            )
+        )
         return 0
 
     configured = {str(item["id"]): item for item in load_data_sources(args.config)}
@@ -189,7 +213,9 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("at least one --source ID=PATH is required")
     unknown_limits = set(source_limits) - set(source_paths)
     if unknown_limits:
-        raise SystemExit(f"--source-limit references unknown source(s): {', '.join(sorted(unknown_limits))}")
+        raise SystemExit(
+            f"--source-limit references unknown source(s): {', '.join(sorted(unknown_limits))}"
+        )
     for source_id, path in source_paths.items():
         if not path.exists():
             raise SystemExit(f"source {source_id} does not exist: {path}")
@@ -213,7 +239,9 @@ def main(argv: list[str] | None = None) -> int:
         per_source[source_id] = count
 
     normalized = [normalize_record(record) for record in raw]
-    holdout_flags = [is_temporal_holdout(record, period=args.holdout_period) for record in normalized]
+    holdout_flags = [
+        is_temporal_holdout(record, period=args.holdout_period) for record in normalized
+    ]
     base_raw = [record for record, flag in zip(normalized, holdout_flags, strict=True) if not flag]
     holdout_raw = [record for record, flag in zip(normalized, holdout_flags, strict=True) if flag]
     base_exact, base_dedup = _deduplicate(base_raw, args=args)
@@ -293,9 +321,9 @@ def main(argv: list[str] | None = None) -> int:
             "clean_ood_session_overlap": 0,
         },
         "limitations": [
-            "The clean common pool contains only family-disjoint leftovers and is malicious-heavy (3760/3886 in the frozen v2/v3 run).",
-            "OOD contains malicious positives only, so ROC-AUC, PR-AUC, and FPR are undefined for that slice; use recall and detection delay only.",
-            "The 126 clean benign sessions make FPR confidence intervals wide; report them as auxiliary evidence rather than a production false-positive estimate.",
+            "The clean common pool contains only family-disjoint leftovers and is malicious-heavy (3760/3886 in the frozen v2/v3 run).",  # noqa: E501
+            "OOD contains malicious positives only, so ROC-AUC, PR-AUC, and FPR are undefined for that slice; use recall and detection delay only.",  # noqa: E501
+            "The 126 clean benign sessions make FPR confidence intervals wide; report them as auxiliary evidence rather than a production false-positive estimate.",  # noqa: E501
         ],
     }
     reports = args.output_dir / "reports"
@@ -303,11 +331,18 @@ def main(argv: list[str] | None = None) -> int:
     write_json_atomic(reports / "provenance.json", provenance)
     write_sha256_manifest([clean_path, ood_path], reports / "SHA256SUMS", root=args.output_dir)
 
-    print(json.dumps({
-        "common_clean": provenance["common_clean"],
-        "ood_2024": provenance["ood_2024"],
-        "output_dir": str(args.output_dir),
-    }, ensure_ascii=False, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "common_clean": provenance["common_clean"],
+                "ood_2024": provenance["ood_2024"],
+                "output_dir": str(args.output_dir),
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

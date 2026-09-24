@@ -12,6 +12,7 @@ Usage:
 Every field is optional: missing files/keys are reported as null plus a note, so a
 half-finished pipeline never silently produces a "clean" table.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,7 @@ def _load(path: str) -> tuple[Any, str | None]:
     if not os.path.isfile(path):
         return None, f"missing:{os.path.basename(path)}"
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             return json.load(fh), None
     except Exception as exc:  # pragma: no cover - defensive
         return None, f"unreadable:{os.path.basename(path)}:{type(exc).__name__}"
@@ -185,7 +186,9 @@ def collect(label: str, root: str) -> dict:
             "tactic_heads_support_ge_50": _int(promotion.get("tactic_heads_support_ge_50")),
             "technique_heads_support_ge_50": _int(promotion.get("technique_heads_support_ge_50")),
             "tactic_macro_f1_support_ge_50": _num(promotion.get("tactic_macro_f1_support_ge_50")),
-            "technique_macro_f1_support_ge_50": _num(promotion.get("technique_macro_f1_support_ge_50")),
+            "technique_macro_f1_support_ge_50": _num(
+                promotion.get("technique_macro_f1_support_ge_50")
+            ),
             "proxy_audit_eligible": _pick(promotion, "proxy_audit", "eligible_for_promotion"),
         },
         "slices": _slices(metj, promotion),
@@ -212,8 +215,14 @@ def _slices(metj: Any, promotion: Any) -> dict[str, Any]:
         if not isinstance(block, dict):
             continue
         mal = block.get("malicious") if isinstance(block.get("malicious"), dict) else {}
-        delay = block.get("detection_delay") if isinstance(block.get("detection_delay"), dict) else {}
-        chk = checks.get(name) if isinstance(checks, dict) and isinstance(checks.get(name), dict) else {}
+        delay = (
+            block.get("detection_delay") if isinstance(block.get("detection_delay"), dict) else {}
+        )
+        chk = (
+            checks.get(name)
+            if isinstance(checks, dict) and isinstance(checks.get(name), dict)
+            else {}
+        )
         balance = chk.get("class_balance") if isinstance(chk.get("class_balance"), dict) else {}
         out[name] = {
             "positive_count": _int(mal.get("positive_count")),
@@ -253,7 +262,7 @@ def render_md(rows: list[dict]) -> str:
     for r in rows:
         s = r["test_session"]
         lines.append(
-            "| {label} | {thr} | {rec} | {fpr} | {prec} | {prauc} | {tp} | {fp} | {tn} | {fn} |".format(
+            "| {label} | {thr} | {rec} | {fpr} | {prec} | {prauc} | {tp} | {fp} | {tn} | {fn} |".format(  # noqa: E501
                 label=r["label"],
                 thr=_fmt(r["threshold"], 8),
                 rec=_fmt(s["recall"]),
@@ -269,7 +278,9 @@ def render_md(rows: list[dict]) -> str:
     lines.append("")
     lines.append("## 2. cap32 prefix 级 test 指标")
     lines.append("")
-    lines.append("| artifact | detection_rate | FPR | TP | FP | FN | FP sessions | missed sessions |")
+    lines.append(
+        "| artifact | detection_rate | FPR | TP | FP | FN | FP sessions | missed sessions |"
+    )
     lines.append("|---|---|---|---|---|---|---|---|")
     for r in rows:
         p = r["test_prefix"]
@@ -289,13 +300,13 @@ def render_md(rows: list[dict]) -> str:
     lines.append("## 3. INT8 ↔ FP32 一致性（工厂证据）")
     lines.append("")
     lines.append(
-        "| artifact | source | prefixes | sessions | session agree | prefix agree | Δrecall | ΔFPR | max Δp | p99 Δp | drift max |"
+        "| artifact | source | prefixes | sessions | session agree | prefix agree | Δrecall | ΔFPR | max Δp | p99 Δp | drift max |"  # noqa: E501
     )
     lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         i = r["int8"]
         lines.append(
-            "| {label} | {src} | {px} | {ss} | {sa} | {pa} | {dr} | {df} | {mx} | {p99} | {drift} |".format(
+            "| {label} | {src} | {px} | {ss} | {sa} | {pa} | {dr} | {df} | {mx} | {p99} | {drift} |".format(  # noqa: E501
                 label=r["label"],
                 src=i["source"] or "—",
                 px=_fmt(i["prefixes_scored"]),
@@ -312,7 +323,9 @@ def render_md(rows: list[dict]) -> str:
     lines.append("")
     lines.append("## 4. 端侧延迟与体积")
     lines.append("")
-    lines.append("| artifact | tokens | p50 ms | p95 ms | p99 ms | max ms | latency pass | INT8 bytes | FP32 bytes |")
+    lines.append(
+        "| artifact | tokens | p50 ms | p95 ms | p99 ms | max ms | latency pass | INT8 bytes | FP32 bytes |"  # noqa: E501
+    )
     lines.append("|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         lat = r["latency"] or {}
@@ -336,7 +349,9 @@ def render_md(rows: list[dict]) -> str:
     lines.append("")
     lines.append("## 5. 门禁状态（fail-closed）")
     lines.append("")
-    lines.append("| artifact | promotion.passed | violations | missing metrics | missing slices | tactic heads ≥50 | technique heads ≥50 | proxy audit eligible |")
+    lines.append(
+        "| artifact | promotion.passed | violations | missing metrics | missing slices | tactic heads ≥50 | technique heads ≥50 | proxy audit eligible |"  # noqa: E501
+    )
     lines.append("|---|---|---|---|---|---|---|---|")
     for r in rows:
         p = r["promotion"]
@@ -357,7 +372,9 @@ def render_md(rows: list[dict]) -> str:
     lines.append("")
     lines.append("## 6. 评估切片状态")
     lines.append("")
-    lines.append("| artifact | slice | positives | negatives | recall | detection_rate | FPR | gate passed | violations |")
+    lines.append(
+        "| artifact | slice | positives | negatives | recall | detection_rate | FPR | gate passed | violations |"  # noqa: E501
+    )
     lines.append("|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         if not r["slices"]:

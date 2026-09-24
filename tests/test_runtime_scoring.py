@@ -366,9 +366,7 @@ def test_from_onnx_prefers_int8_model(tmp_path: Path, monkeypatch) -> None:
         seen["path"] = path
         return session
 
-    fake_ort = SimpleNamespace(
-        SessionOptions=SessionOptions, InferenceSession=make_session
-    )
+    fake_ort = SimpleNamespace(SessionOptions=SessionOptions, InferenceSession=make_session)
     monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
 
     scorer = SessionScorer.from_onnx(artifact, tokenizer=FakeTokenizer())
@@ -476,9 +474,7 @@ def test_from_onnx_requires_manifest_by_default(tmp_path: Path) -> None:
     artifact = _artifact(tmp_path)
     (artifact / "export_manifest.json").unlink()
     with pytest.raises(ArtifactLoadError, match="manifest verification failed"):
-        SessionScorer.from_onnx(
-            artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer()
-        )
+        SessionScorer.from_onnx(artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer())
     # The escape hatch keeps legacy bundles loadable during migration.
     scorer = SessionScorer.from_onnx(
         artifact,
@@ -495,9 +491,7 @@ def test_from_onnx_rejects_tampered_artifact(tmp_path: Path) -> None:
     artifact = _artifact(tmp_path)
     (artifact / "calibration.json").write_text("{}", encoding="utf-8")
     with pytest.raises(ArtifactLoadError, match="manifest verification failed"):
-        SessionScorer.from_onnx(
-            artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer()
-        )
+        SessionScorer.from_onnx(artifact, onnx_session=FakeOnnxSession(), tokenizer=FakeTokenizer())
 
 
 def test_from_onnx_preloads_cuda_libraries_when_requested(tmp_path: Path, monkeypatch) -> None:

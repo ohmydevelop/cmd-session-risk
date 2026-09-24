@@ -24,9 +24,7 @@ SCREEN = _load_module()
 
 def test_family_split_is_deterministic_and_family_disjoint() -> None:
     family_ids = [f"family:{index}" for index in range(40) for _ in range(3)]
-    calibration, evaluation = SCREEN.family_split_masks(
-        family_ids, fraction=0.5, seed=42
-    )
+    calibration, evaluation = SCREEN.family_split_masks(family_ids, fraction=0.5, seed=42)
     assert calibration and evaluation
     assert len(calibration) + len(evaluation) == len(family_ids)
     calibration_families = {family_ids[index] for index in calibration}
@@ -62,13 +60,8 @@ def test_family_split_matches_training_partition() -> None:
         )
         for family in range(17)
     ]
-    _, calibration_examples = _stable_family_partition(
-        examples, fraction=0.5, seed=42
-    )
-    expected = {
-        example.family_id
-        for example in calibration_examples
-    }
+    _, calibration_examples = _stable_family_partition(examples, fraction=0.5, seed=42)
+    expected = {example.family_id for example in calibration_examples}
     calibration, _ = SCREEN.family_split_masks(
         [example.family_id for example in examples], fraction=0.5, seed=42
     )
@@ -121,9 +114,7 @@ def test_verdicts_accept_a_pareto_improvement_and_reject_a_regression() -> None:
     assert entry["prefix_fpr_delta"] == pytest.approx(0.001)
 
     # A tolerance lets a candidate give back a little recall in exchange for FPR.
-    lenient = SCREEN._verdicts(
-        worse, baseline="final", recall_tolerance=0.02
-    )
+    lenient = SCREEN._verdicts(worse, baseline="final", recall_tolerance=0.02)
     assert lenient["soup"]["dominates_all_budgets"] is False  # FPR still worse
     both_worse = _results(1.0)
     both_worse["final"]["rows"][0]["prefix_recall"] = 0.90

@@ -58,9 +58,7 @@ def test_refresh_derives_model_version_from_runtime_config(tmp_path: Path) -> No
 
 def test_refresh_honours_an_explicit_model_version(tmp_path: Path) -> None:
     root = _artifact(tmp_path, runtime_version=None)
-    assert refresh.main(
-        ["--artifact-dir", str(root), "--model-version", "pinned-1.0"]
-    ) == 0
+    assert refresh.main(["--artifact-dir", str(root), "--model-version", "pinned-1.0"]) == 0
     manifest = json.loads((root / "export_manifest.json").read_text(encoding="utf-8"))
     assert manifest["model_version"] == "pinned-1.0"
 

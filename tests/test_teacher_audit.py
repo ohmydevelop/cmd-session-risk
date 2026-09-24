@@ -49,7 +49,6 @@ def _case(session_id: str = "case-1") -> AuditCase:
     )
 
 
-
 class RoutedReviewer:
     def __init__(self, responses: dict[str, ProxyReviewResponse]) -> None:
         self.responses = responses
@@ -63,6 +62,7 @@ def _prediction_case(session_id: str, probability: float) -> AuditCase:
     return _case(session_id).model_copy(
         update={"prediction": {"malicious_probability": probability}}
     )
+
 
 def test_reviewer_context_hides_gold_prediction_and_meta() -> None:
     context = reviewer_payload(_case().model_dump(mode="json"))
@@ -229,10 +229,7 @@ def test_four_primary_reviewers_three_to_one_is_high_consensus() -> None:
 
 
 def test_four_primary_reviewers_unanimous_is_high_consensus() -> None:
-    reviewers = tuple(
-        FakeReviewer(_review("malicious", 2, technique="T1105"))
-        for _ in range(4)
-    )
+    reviewers = tuple(FakeReviewer(_review("malicious", 2, technique="T1105")) for _ in range(4))
     result = ProxyAuditor(reviewers).audit_case(_case())
 
     assert result.decision == "malicious"
@@ -321,22 +318,15 @@ def test_prediction_metrics_exclude_unresolved_cases_and_expose_gate() -> None:
         _prediction_case("tn", 0.2),
         _prediction_case("unresolved", 0.99),
     ]
-    first = {
-        case.session_id: _review("malicious", 2, technique="T1105")
-        for case in cases
-    }
+    first = {case.session_id: _review("malicious", 2, technique="T1105") for case in cases}
     second = {
-        case.session_id: _review(
-            "malicious", 2, technique="T1105"
-        )
+        case.session_id: _review("malicious", 2, technique="T1105")
         if case.session_id in {"tp", "fn"}
         else _review("benign")
         for case in cases
     }
     third = {
-        case.session_id: _review(
-            "malicious", 2, technique="T1105"
-        )
+        case.session_id: _review("malicious", 2, technique="T1105")
         if case.session_id in {"tp", "fn"}
         else _review("benign")
         for case in cases

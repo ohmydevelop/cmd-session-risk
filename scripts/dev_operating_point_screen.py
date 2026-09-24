@@ -42,7 +42,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -220,7 +219,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.baseline is not None and args.baseline not in labels:
         raise SystemExit(f"--baseline {args.baseline!r} is not one of {labels}")
 
-    import numpy as np
     import torch
 
     from cmdrisk.model_factory import load_risk_model
@@ -282,9 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     results: dict[str, dict] = {}
     for label, checkpoint in candidates:
         resolved = str(checkpoint.resolve())
-        tokenizer_source = (
-            args.tokenizer_source.resolve() if args.tokenizer_source else checkpoint
-        )
+        tokenizer_source = args.tokenizer_source.resolve() if args.tokenizer_source else checkpoint
         tokenizer = CommandTokenizer.from_pretrained(tokenizer_source)
         model = load_risk_model(checkpoint)
         model.to(device)
@@ -301,12 +297,8 @@ def main(argv: list[str] | None = None) -> int:
         del model
         calibration_predictions = _subset(payload, calibration_indices)
         evaluation_predictions = _subset(payload, evaluation_indices)
-        evaluation_sessions = len(
-            {str(item) for item in evaluation_predictions["session_ids"]}
-        )
-        calibration_sessions = len(
-            {str(item) for item in calibration_predictions["session_ids"]}
-        )
+        evaluation_sessions = len({str(item) for item in evaluation_predictions["session_ids"]})
+        calibration_sessions = len({str(item) for item in calibration_predictions["session_ids"]})
         rows: list[dict] = []
         for max_fpr in grid:
             calibration = fit_calibration(
@@ -400,9 +392,7 @@ def _sha256_of_weights(checkpoint: Path) -> str | None:
     return digest.hexdigest()
 
 
-def _verdicts(
-    results: dict[str, dict], *, baseline: str | None, recall_tolerance: float
-) -> dict:
+def _verdicts(results: dict[str, dict], *, baseline: str | None, recall_tolerance: float) -> dict:
     if baseline is None:
         return {}
     base_rows = {row["max_fpr"]: row for row in results[baseline]["rows"]}

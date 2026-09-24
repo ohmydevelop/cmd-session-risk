@@ -154,12 +154,10 @@ class Calibration:
             tactic_temperature=float(value.get("tactic_temperature", 1.0)),
             technique_temperature=float(value.get("technique_temperature", 1.0)),
             tactic_thresholds={
-                str(key): float(item)
-                for key, item in value.get("tactic_thresholds", {}).items()
+                str(key): float(item) for key, item in value.get("tactic_thresholds", {}).items()
             },
             technique_thresholds={
-                str(key): float(item)
-                for key, item in value.get("technique_thresholds", {}).items()
+                str(key): float(item) for key, item in value.get("technique_thresholds", {}).items()
             },
             target_fpr=float(value.get("target_fpr", 0.01)),
             version=int(value.get("version", 1)),

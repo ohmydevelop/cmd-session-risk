@@ -69,10 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         primary_roles = ("R1", "R2", "R3")
         tiebreak_roles = tuple(args.tiebreak_role)
         roles = primary_roles + tiebreak_roles
-        configs = [
-            ModelConfig.from_env(role, namespace="CMDRISK_REVIEWER")
-            for role in roles
-        ]
+        configs = [ModelConfig.from_env(role, namespace="CMDRISK_REVIEWER") for role in roles]
         if len({config.model for config in configs}) != len(configs):
             if tiebreak_roles:
                 raise ConfigurationError("proxy audit requires distinct reviewer models")
@@ -99,9 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
         if args.unresolved_out is not None:
-            unresolved = [
-                result for result in report.results if result.consensus == "unresolved"
-            ]
+            unresolved = [result for result in report.results if result.consensus == "unresolved"]
             args.unresolved_out.parent.mkdir(parents=True, exist_ok=True)
             args.unresolved_out.write_text(
                 "".join(item.model_dump_json() + "\n" for item in unresolved),

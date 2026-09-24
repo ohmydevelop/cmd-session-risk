@@ -9,9 +9,7 @@ from collections.abc import Iterable
 
 from cmdrisk.schema import CommandEvent, SessionRecord
 
-ANSI_ESCAPE_RE = re.compile(
-    r"(?:\x1B[@-_][0-?]*[ -/]*[@-~])|(?:\x1B\][^\x07]*(?:\x07|\x1B\\))"
-)
+ANSI_ESCAPE_RE = re.compile(r"(?:\x1B[@-_][0-?]*[ -/]*[@-~])|(?:\x1B\][^\x07]*(?:\x07|\x1B\\))")
 PROMPT_RE = re.compile(
     r"^\s*(?:(?:\([^)]{0,64}\)\s*)?"
     r"(?:\[[^\]]{0,64}\]\s*)?"

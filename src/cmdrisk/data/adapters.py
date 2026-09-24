@@ -180,9 +180,7 @@ class MicrosoftIoTAdapter:
         commands = _as_commands(raw_commands)
         if not commands:
             return None
-        external_id = str(
-            item.get("ID") or item.get("id") or stable_session_id("raw", commands)
-        )
+        external_id = str(item.get("ID") or item.get("id") or stable_session_id("raw", commands))
         meta = {
             key: item[key]
             for key in ("Protocol", "TimesSeen", "FirstSeen", "LastSeen")
@@ -219,14 +217,10 @@ class ShellAttackEvolutionAdapter:
             return
         if source.suffix.casefold() == ".zip" or zipfile.is_zipfile(source):
             for name, text in iter_zip_member_texts(source):
-                yield from self._iter_stream(
-                    iter_stream_values(text), external_prefix=name
-                )
+                yield from self._iter_stream(iter_stream_values(text), external_prefix=name)
             return
         with source.open("r", encoding="utf-8-sig") as text:
-            yield from self._iter_stream(
-                iter_stream_values(text), external_prefix=source.name
-            )
+            yield from self._iter_stream(iter_stream_values(text), external_prefix=source.name)
 
     def _iter_content(self, content: str, *, external_prefix: str) -> Iterator[SessionRecord]:
         """Compatibility wrapper that streams from an in-memory document."""
@@ -442,14 +436,10 @@ class ZenodoAdapter:
             return
         if source.suffix.casefold() == ".zip" or zipfile.is_zipfile(source):
             for name, text in iter_zip_member_texts(source):
-                yield from self._iter_action_values(
-                    iter_stream_values(text), source_name=name
-                )
+                yield from self._iter_action_values(iter_stream_values(text), source_name=name)
             return
         with source.open("r", encoding="utf-8-sig") as text:
-            yield from self._iter_action_values(
-                iter_stream_values(text), source_name=source.name
-            )
+            yield from self._iter_action_values(iter_stream_values(text), source_name=source.name)
 
     def _iter_actions(self, content: str, *, source_name: str) -> Iterator[SessionRecord]:
         """Compatibility wrapper for callers that already hold a string."""
@@ -889,7 +879,7 @@ class RealHistoryPoolAdapter:
 
     def _iter_document(self, path: Path, source_name: str) -> Iterator[SessionRecord]:
         block: list[tuple[int, str]] = []
-        block_start = 1
+        _block_start = 1
         with path.open("r", encoding="utf-8", errors="replace") as handle:
             for line_number, raw_line in enumerate(handle, start=1):
                 command = clean_command(raw_line)
@@ -897,14 +887,12 @@ class RealHistoryPoolAdapter:
                     continue
                 if command.casefold() in self._TERMINATORS:
                     if block:
-                        yield from self._emit_block(
-                            block, path, source_name, observed=True
-                        )
+                        yield from self._emit_block(block, path, source_name, observed=True)
                     block = []
-                    block_start = line_number + 1
+                    _block_start = line_number + 1
                     continue
                 if not block:
-                    block_start = line_number
+                    _block_start = line_number  # unused; carried in emitted tuples
                 block.append((line_number, command))
             if block:
                 yield from self._emit_block(block, path, source_name, observed=False)
@@ -930,18 +918,17 @@ class RealHistoryPoolAdapter:
         # The block id is positional (it identifies *where* in the pool the
         # fragment came from) and is deliberately distinct from the session id
         # so lineage never collapses into a self-loop.
-        block_id = "fragment:" + hashlib.sha256(
-            f"{path.name}:{block_first}-{block_last}".encode()
-        ).hexdigest()[:32]
+        block_id = (
+            "fragment:"
+            + hashlib.sha256(f"{path.name}:{block_first}-{block_last}".encode()).hexdigest()[:32]
+        )
         for offset, chunk in enumerate(chunks):
             commands = [command for _, command in chunk]
             if len(commands) < self.min_commands:
                 continue
             line_numbers = [line_number for line_number, _ in chunk]
             boundary = (
-                "real_exit_delimiter"
-                if observed and len(chunks) == 1
-                else "synthetic_window"
+                "real_exit_delimiter" if observed and len(chunks) == 1 else "synthetic_window"
             )
             record = _make_record(
                 source_name=source_name,
@@ -962,11 +949,7 @@ class RealHistoryPoolAdapter:
                 },
             )
             yield record.model_copy(
-                update={
-                    "source": record.source.model_copy(
-                        update={"parent_session_id": block_id}
-                    )
-                }
+                update={"source": record.source.model_copy(update={"parent_session_id": block_id})}
             )
 
 

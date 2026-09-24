@@ -51,9 +51,7 @@ WORDS = (
 
 
 def _tiny_config(vocabulary: LabelVocabulary) -> ModernBertRiskConfig:
-    values = json.loads(
-        (FIXTURES / "tiny_modernbert_config.json").read_text(encoding="utf-8")
-    )
+    values = json.loads((FIXTURES / "tiny_modernbert_config.json").read_text(encoding="utf-8"))
     return ModernBertRiskConfig(
         **values,
         num_tactics=len(vocabulary.tactics),
@@ -134,9 +132,7 @@ def test_export_onnx_round_trips_through_runtime(tmp_path: Path) -> None:
     assert manifest["int8_parity_max_abs_error"] <= manifest["int8_parity_atol"]
     assert (artifact / "model.onnx").is_file()
     assert (artifact / "model.int8.onnx").is_file()
-    tokenization = json.loads(
-        (artifact / "command_tokenization.json").read_text(encoding="utf-8")
-    )
+    tokenization = json.loads((artifact / "command_tokenization.json").read_text(encoding="utf-8"))
     assert tokenization["max_length"] == 256
     assert tokenization["command_max_tokens"] == 32
     assert json.loads((artifact / "labels.json").read_text(encoding="utf-8"))["techniques"] == [
@@ -159,14 +155,10 @@ def test_export_stamps_model_version_into_the_artifact(tmp_path: Path) -> None:
     checkpoint, calibration = _build_checkpoint(tmp_path)
     run_dir = tmp_path / "cmd-session-risk-l4-20260919-0020"
     artifact = run_dir / "onnx"
-    manifest = export_onnx(
-        checkpoint=checkpoint, output_dir=artifact, calibration_path=calibration
-    )
+    manifest = export_onnx(checkpoint=checkpoint, output_dir=artifact, calibration_path=calibration)
 
     # Defaults to the parent directory name, which is the training run id.
-    runtime_config = json.loads(
-        (artifact / "runtime_config.json").read_text(encoding="utf-8")
-    )
+    runtime_config = json.loads((artifact / "runtime_config.json").read_text(encoding="utf-8"))
     assert runtime_config["model_version"] == run_dir.name
     assert manifest["model_version"] == run_dir.name
     assert manifest["runtime_config"] == "runtime_config.json"
@@ -194,9 +186,7 @@ def test_export_honours_an_explicit_model_version(tmp_path: Path) -> None:
     assert SessionScorer.from_onnx(artifact).model_version == "cmd-session-risk-v1.2.0"
 
     # Rewriting must preserve unrelated runtime keys already in the file.
-    write_runtime_config(
-        artifact, model_version=None, extra={"provider": "CPUExecutionProvider"}
-    )
+    write_runtime_config(artifact, model_version=None, extra={"provider": "CPUExecutionProvider"})
     payload = json.loads((artifact / "runtime_config.json").read_text(encoding="utf-8"))
     assert payload["model_version"] == artifact.parent.name
     assert payload["provider"] == "CPUExecutionProvider"
@@ -314,9 +304,7 @@ def test_export_manifest_lists_every_artifact(tmp_path: Path) -> None:
 
     checkpoint, calibration = _build_checkpoint(tmp_path)
     artifact = tmp_path / "onnx"
-    manifest = export_onnx(
-        checkpoint=checkpoint, output_dir=artifact, calibration_path=calibration
-    )
+    manifest = export_onnx(checkpoint=checkpoint, output_dir=artifact, calibration_path=calibration)
 
     assert manifest["schema"] == EXPORT_MANIFEST_SCHEMA
     assert manifest["version"] == EXPORT_MANIFEST_VERSION

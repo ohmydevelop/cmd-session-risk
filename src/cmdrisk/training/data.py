@@ -118,9 +118,7 @@ def select_prefix_indices(
             for index in range(first_evidence_index - 2, first_evidence_index + 2)
             if 0 <= index < command_count
         )
-    mandatory.update(
-        index for index in evidence_indices if 0 <= int(index) < command_count
-    )
+    mandatory.update(index for index in evidence_indices if 0 <= int(index) < command_count)
 
     if len(mandatory) > max_prefixes:
         # Preserve chronology rather than allowing a label with an unusually
@@ -222,7 +220,5 @@ def expand_records(
         record_split = str(item.get("split") or "train")
         if split is not None and record_split != split:
             continue
-        examples.extend(
-            build_prefix_examples(record, vocabulary, max_prefixes=max_prefixes)
-        )
+        examples.extend(build_prefix_examples(record, vocabulary, max_prefixes=max_prefixes))
     return examples

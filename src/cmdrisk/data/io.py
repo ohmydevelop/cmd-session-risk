@@ -28,9 +28,7 @@ def iter_jsonl(path: str | Path) -> Iterator[dict[str, Any]]:
             yield value
 
 
-def read_jsonl(
-    path: str | Path, model: type[ModelT] = SessionRecord
-) -> list[ModelT]:
+def read_jsonl(path: str | Path, model: type[ModelT] = SessionRecord) -> list[ModelT]:
     return [model.model_validate(value) for value in iter_jsonl(path)]
 
 

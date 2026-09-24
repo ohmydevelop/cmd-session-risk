@@ -433,8 +433,7 @@ def main() -> int:
         missing = {"ood_2024", "synthetic_stress"} - set(slice_names)
         if missing:
             raise SystemExit(
-                "v2 corpus is missing required evaluation slice(s): "
-                + ", ".join(sorted(missing))
+                "v2 corpus is missing required evaluation slice(s): " + ", ".join(sorted(missing))
             )
     write_json_atomic(
         state_path,

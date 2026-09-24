@@ -91,7 +91,9 @@ def main(argv: list[str] | None = None) -> int:
             src = args.base_checkpoint / fname
             if src.exists():
                 shutil.copy2(src, out / fname)
-        (out / "PROBE_ONLY.json").write_text(json.dumps({**marker, "variant": name}, indent=2) + "\n", encoding="utf-8")
+        (out / "PROBE_ONLY.json").write_text(
+            json.dumps({**marker, "variant": name}, indent=2) + "\n", encoding="utf-8"
+        )
         params = sum(p.numel() for p in model.parameters())
         rows.append(
             {
@@ -106,7 +108,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"{name:12s} params={params:,} -> {out}")
 
-    (args.output_dir / "ladder.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+    (args.output_dir / "ladder.json").write_text(
+        json.dumps(rows, indent=2) + "\n", encoding="utf-8"
+    )
     return 0
 
 

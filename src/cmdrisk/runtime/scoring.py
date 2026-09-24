@@ -251,9 +251,7 @@ class SessionScorer:
         malicious_threshold = _probability(
             malicious_threshold, name="malicious threshold", default=0.5
         )
-        tactic_threshold = _probability(
-            tactic_threshold, name="tactic threshold", default=0.5
-        )
+        tactic_threshold = _probability(tactic_threshold, name="tactic threshold", default=0.5)
         technique_threshold = _probability(
             technique_threshold, name="technique threshold", default=0.5
         )
@@ -349,9 +347,7 @@ class SessionScorer:
             root, ("runtime_config.json", "runtime.json", "config.json"), required=False
         )
         runtime_config = _read_json(runtime_path) if runtime_path else {}
-        label_path = _first_existing(
-            root, ("label_vocab.json", "labels.json"), required=False
-        )
+        label_path = _first_existing(root, ("label_vocab.json", "labels.json"), required=False)
         label_config = _read_json(label_path) if label_path else runtime_config
         calibration_path = _first_existing(
             root, ("calibration.json", "thresholds.json"), required=False
@@ -382,13 +378,9 @@ class SessionScorer:
                 if malicious_section is None
                 else malicious_section
             )
-            malicious_temperature = calibration.get(
-                "malicious_temperature", legacy_temperature
-            )
+            malicious_temperature = calibration.get("malicious_temperature", legacy_temperature)
         tactic_temperature = calibration.get("tactic_temperature", legacy_temperature)
-        technique_temperature = calibration.get(
-            "technique_temperature", legacy_temperature
-        )
+        technique_temperature = calibration.get("technique_temperature", legacy_temperature)
 
         tactic_threshold_value = calibration.get("tactics")
         if tactic_threshold_value is None:
@@ -398,13 +390,9 @@ class SessionScorer:
         technique_threshold_value = calibration.get("techniques")
         if technique_threshold_value is None:
             technique_threshold_value = calibration.get("technique_thresholds")
-        technique_default, technique_thresholds = _threshold_map(
-            technique_threshold_value
-        )
+        technique_default, technique_thresholds = _threshold_map(technique_threshold_value)
 
-        output_names = runtime_config.get(
-            "onnx_outputs", label_config.get("onnx_outputs", {})
-        )
+        output_names = runtime_config.get("onnx_outputs", label_config.get("onnx_outputs", {}))
         if not isinstance(output_names, dict):
             raise ArtifactLoadError("onnx_outputs must be an object")
         output_names = {str(key): str(value) for key, value in output_names.items()}
@@ -423,23 +411,17 @@ class SessionScorer:
                 "command_max_tokens",
                 label_config.get(
                     "command_max_tokens",
-                    tokenization_config.get(
-                        "command_max_tokens", DEFAULT_COMMAND_MAX_TOKENS
-                    ),
+                    tokenization_config.get("command_max_tokens", DEFAULT_COMMAND_MAX_TOKENS),
                 ),
             )
         )
         session_head_tokens = runtime_config.get(
             "session_head_tokens",
-            label_config.get(
-                "session_head_tokens", tokenization_config.get("session_head_tokens")
-            ),
+            label_config.get("session_head_tokens", tokenization_config.get("session_head_tokens")),
         )
         session_tail_tokens = runtime_config.get(
             "session_tail_tokens",
-            label_config.get(
-                "session_tail_tokens", tokenization_config.get("session_tail_tokens")
-            ),
+            label_config.get("session_tail_tokens", tokenization_config.get("session_tail_tokens")),
         )
         model_version = str(
             runtime_config.get(
@@ -460,9 +442,7 @@ class SessionScorer:
                 raise ArtifactLoadError(
                     "onnxruntime is required; install the 'train' extra"
                 ) from exc
-            requested = [
-                str(item) for item in (providers or ("CPUExecutionProvider",))
-            ]
+            requested = [str(item) for item in (providers or ("CPUExecutionProvider",))]
             if any("CUDA" in item for item in requested):
                 # ONNX Runtime ships CUDA/cuDNN under separate ``nvidia-*``
                 # wheels.  Preloading lets a GPU session start without the
@@ -551,9 +531,7 @@ class SessionScorer:
         self._sessions[session_id] = state
         return state
 
-    def sequence_score(
-        self, session_id: str, entries: Sequence[ScoreEntry]
-    ) -> SequenceScore:
+    def sequence_score(self, session_id: str, entries: Sequence[ScoreEntry]) -> SequenceScore:
         """Assemble a :class:`SequenceScore` from precomputed prefix entries."""
 
         state = SessionState(scorer=self, session_id=session_id)
@@ -586,9 +564,7 @@ class SessionScorer:
 
     def _encode(self, commands: Sequence[tuple[str, float | None]]) -> dict[str, np.ndarray]:
         try:
-            encoded = self._tokenizer.encode(
-                [{"cmd": cmd, "dt": dt} for cmd, dt in commands]
-            )
+            encoded = self._tokenizer.encode([{"cmd": cmd, "dt": dt} for cmd, dt in commands])
         except Exception as exc:
             raise InferenceError(f"tokenizer failed: {exc}") from exc
 

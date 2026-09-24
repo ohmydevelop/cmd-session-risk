@@ -134,9 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     def _session(path: Path) -> Any:
         options = ort.SessionOptions()
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        return ort.InferenceSession(
-            str(path), options, providers=["CPUExecutionProvider"]
-        )
+        return ort.InferenceSession(str(path), options, providers=["CPUExecutionProvider"])
 
     try:
         fp32 = SessionScorer.from_onnx(
@@ -209,9 +207,7 @@ def main(argv: list[str] | None = None) -> int:
 
     fp_rates = _rates(fp_decisions, labels)
     int8_rates = _rates(int8_decisions, labels)
-    session_agree = sum(
-        1 for a, b in zip(fp_decisions, int8_decisions, strict=True) if a == b
-    )
+    session_agree = sum(1 for a, b in zip(fp_decisions, int8_decisions, strict=True) if a == b)
 
     def _delta(key: str) -> float | None:
         left = int8_rates.get(key)
@@ -235,9 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             "p95": _percentile(prob_deltas, 0.95),
             "p99": _percentile(prob_deltas, 0.99),
         },
-        "prefix_decision_agreement": (
-            prefix_agree / prefix_total if prefix_total else None
-        ),
+        "prefix_decision_agreement": (prefix_agree / prefix_total if prefix_total else None),
         "session_decision_agreement": session_agree / len(labels),
         "fp32": fp_rates,
         "int8": int8_rates,

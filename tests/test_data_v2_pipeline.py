@@ -135,9 +135,9 @@ def test_synthetic_stress_is_deterministic_and_not_teacher_generated() -> None:
         assert record.meta["augmentation_version"] == "v1"
         assert record.meta["evaluation_slice"] == "synthetic_stress"
         assert record.source.parent_session_id is not None
-    assert any(
-        record.source.kind == SourceKind.LLM_VARIANT for record in derived
-    ), "attack variants must be present"
+    assert any(record.source.kind == SourceKind.LLM_VARIANT for record in derived), (
+        "attack variants must be present"
+    )
 
 
 def test_derived_records_share_family_with_parent() -> None:

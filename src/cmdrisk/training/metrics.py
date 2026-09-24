@@ -80,9 +80,7 @@ def wilson_interval(
     centre = (proportion + z * z / (2.0 * total)) / denominator
     margin = (
         z
-        * math.sqrt(
-            proportion * (1.0 - proportion) / total + z * z / (4.0 * total * total)
-        )
+        * math.sqrt(proportion * (1.0 - proportion) / total + z * z / (4.0 * total * total))
         / denominator
     )
     return max(0.0, centre - margin), min(1.0, centre + margin)
@@ -127,10 +125,7 @@ def roc_auc(labels: np.ndarray, probabilities: np.ndarray) -> float:
         ranks[order[start:end]] = (start + end - 1) / 2.0 + 1.0
         start = end
     positive_rank_sum = float(np.sum(ranks[targets > 0]))
-    return float(
-        (positive_rank_sum - positives * (positives + 1) / 2.0)
-        / (positives * negatives)
-    )
+    return float((positive_rank_sum - positives * (positives + 1) / 2.0) / (positives * negatives))
 
 
 def expected_calibration_error(
@@ -178,14 +173,10 @@ def binary_classification_metrics(
     false_negative = int(np.count_nonzero(~predictions & positives))
     true_negative = int(np.count_nonzero(~predictions & negatives))
     precision = (
-        true_positive / (true_positive + false_positive)
-        if true_positive + false_positive
-        else 0.0
+        true_positive / (true_positive + false_positive) if true_positive + false_positive else 0.0
     )
     recall = (
-        true_positive / (true_positive + false_negative)
-        if true_positive + false_negative
-        else 0.0
+        true_positive / (true_positive + false_negative) if true_positive + false_negative else 0.0
     )
     fpr = false_positive / (false_positive + true_negative) if negatives.any() else 0.0
     recall_low, recall_high = wilson_interval(true_positive, int(np.count_nonzero(positives)))
@@ -262,11 +253,7 @@ def detection_delay_metrics(
         malicious_sessions += 1
         onset = positive_indices[0]
         alert_index = next(
-            (
-                index
-                for index, _, score in observations
-                if index >= onset and score >= threshold
-            ),
+            (index for index, _, score in observations if index >= onset and score >= threshold),
             None,
         )
         final_index = max(index for index, _, _ in observations)
@@ -415,12 +402,8 @@ def multilabel_metrics(
         result[f"macro_precision_support_ge_{floor}"] = _mean_for_support(
             precision, support, floor=floor
         )
-        result[f"macro_recall_support_ge_{floor}"] = _mean_for_support(
-            recall, support, floor=floor
-        )
-        result[f"macro_f1_support_ge_{floor}"] = _mean_for_support(
-            f1, support, floor=floor
-        )
+        result[f"macro_recall_support_ge_{floor}"] = _mean_for_support(recall, support, floor=floor)
+        result[f"macro_f1_support_ge_{floor}"] = _mean_for_support(f1, support, floor=floor)
         result[f"heads_support_ge_{floor}"] = int(np.count_nonzero(eligible))
     return result
 
@@ -542,9 +525,7 @@ def _proxy_audit_gate(
     )
 
     complete_predictions = (
-        resolved_cases is not None
-        and scored_cases == resolved_cases
-        and unpredicted_cases == 0
+        resolved_cases is not None and scored_cases == resolved_cases and unpredicted_cases == 0
     )
     count_ok = resolved_cases is not None and resolved_cases >= minimum_resolved_cases
     unresolved_ok = unresolved == 0
@@ -623,18 +604,11 @@ def _tactic_label_coverage_gate(
             continue
         support_counts[name] = int(numeric_count)
 
-    covered = [
-        name for name, count in support_counts.items() if count >= support_floor
-    ]
-    uncovered = [
-        name for name, count in support_counts.items() if count < support_floor
-    ]
+    covered = [name for name, count in support_counts.items() if count >= support_floor]
+    uncovered = [name for name, count in support_counts.items() if count < support_floor]
     observed = len(covered)
     if observed < minimum_covered_tactics:
-        blockers.append(
-            "covered_tactics_below_minimum:"
-            f"{observed}<{minimum_covered_tactics}"
-        )
+        blockers.append(f"covered_tactics_below_minimum:{observed}<{minimum_covered_tactics}")
     return not blockers, {
         "observed": observed,
         "required": minimum_covered_tactics,
@@ -644,6 +618,7 @@ def _tactic_label_coverage_gate(
         "support_counts": support_counts,
         "blockers": blockers,
     }
+
 
 def promotion_report(
     malicious_metrics: dict[str, Any],
@@ -694,9 +669,7 @@ def promotion_report(
     if require_proxy_audit:
         proxy_audit_passed, proxy_audit = _proxy_audit_gate(
             proxy_audit_report,
-            minimum_resolved_cases=int(
-                selected_targets["minimum_resolved_audit_cases"]
-            ),
+            minimum_resolved_cases=int(selected_targets["minimum_resolved_audit_cases"]),
         )
         proxy_audit["required"] = True
         checks["proxy_audit"] = proxy_audit_passed
@@ -718,17 +691,11 @@ def promotion_report(
         "tactic_macro_f1": values["tactic_macro_f1"],
         "technique_macro_f1": values["technique_macro_f1"],
         "tactic_macro_f1_all_heads": _finite_metric(tactic_macro_f1_all_heads),
-        "tactic_macro_f1_support_ge_1": _finite_metric(
-            tactic_macro_f1_support_ge_1
-        ),
+        "tactic_macro_f1_support_ge_1": _finite_metric(tactic_macro_f1_support_ge_1),
         "tactic_macro_f1_support_ge_50": tactic_floor_50,
         "tactic_heads_support_ge_50": _finite_int(tactic_heads_support_ge_50),
-        "technique_macro_f1_all_heads": _finite_metric(
-            technique_macro_f1_all_heads
-        ),
-        "technique_macro_f1_support_ge_1": _finite_metric(
-            technique_macro_f1_support_ge_1
-        ),
+        "technique_macro_f1_all_heads": _finite_metric(technique_macro_f1_all_heads),
+        "technique_macro_f1_support_ge_1": _finite_metric(technique_macro_f1_support_ge_1),
         "technique_macro_f1_support_ge_50": technique_floor_50,
         "technique_heads_support_ge_50": _finite_int(technique_heads_support_ge_50),
         "tactic_label_coverage": tactic_label_coverage,

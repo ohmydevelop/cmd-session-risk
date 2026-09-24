@@ -75,9 +75,7 @@ def _git_download(source: dict[str, Any], destination: Path, *, resume: bool) ->
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() and (destination / ".git").exists():
         if not resume:
-            subprocess.run(
-                ["git", "-C", str(destination), "fetch", "--all", "--tags"], check=True
-            )
+            subprocess.run(["git", "-C", str(destination), "fetch", "--all", "--tags"], check=True)
     elif destination.exists():
         raise RuntimeError(f"destination exists and is not a Git repository: {destination}")
     else:
@@ -94,9 +92,7 @@ def _git_download(source: dict[str, Any], destination: Path, *, resume: bool) ->
             f"pinned revision {revision} is not available for {source.get('id')}; "
             "rerun without --resume to fetch it"
         )
-    subprocess.run(
-        ["git", "-C", str(destination), "checkout", "--detach", revision], check=True
-    )
+    subprocess.run(["git", "-C", str(destination), "checkout", "--detach", revision], check=True)
     head = subprocess.run(
         ["git", "-C", str(destination), "rev-parse", "HEAD"],
         check=True,
@@ -114,10 +110,8 @@ def _verify_download(source: dict[str, Any], destination: Path) -> None:
         try:
             verify_file_checksum(destination, checksum)
         except ValueError as exc:
-            source_id = source.get('id')
-            raise RuntimeError(
-                f"checksum verification failed for {source_id}: {exc}"
-            ) from exc
+            source_id = source.get("id")
+            raise RuntimeError(f"checksum verification failed for {source_id}: {exc}") from exc
 
 
 def _is_git_source(source: dict[str, Any]) -> bool:

@@ -58,9 +58,7 @@ def test_detection_delay_uses_first_latched_alert() -> None:
 
 def test_multilabel_metrics_ignore_zero_support_heads() -> None:
     labels = np.asarray([[1, 0, 0], [0, 0, 0]], dtype=np.float64)
-    probabilities = np.asarray(
-        [[0.9, 0.9, 0.9], [0.1, 0.1, 0.1]], dtype=np.float64
-    )
+    probabilities = np.asarray([[0.9, 0.9, 0.9], [0.1, 0.1, 0.1]], dtype=np.float64)
     metrics = multilabel_metrics(labels, probabilities, thresholds=0.5)
     assert metrics["macro_f1_all"] == metrics["macro_f1"]
     assert metrics["macro_f1_all"] == pytest.approx(1.0 / 3.0)
@@ -308,8 +306,7 @@ def test_pipeline_applies_thresholds_to_every_required_slice() -> None:
     assert metrics["promotion"]["checks"]["evaluation_slices_passed"] is False
     assert set(metrics["promotion"]["slice_checks"]) == set(names)
     assert all(
-        item["checks"]["brier"] is False
-        for item in metrics["promotion"]["slice_checks"].values()
+        item["checks"]["brier"] is False for item in metrics["promotion"]["slice_checks"].values()
     )
 
 
@@ -322,9 +319,7 @@ def test_pipeline_fails_closed_on_zero_positive_slice() -> None:
     predictions["malicious_logits"] = np.full_like(
         predictions["malicious_logits"], -10.0, dtype=np.float64
     )
-    predictions["tactic_labels"] = np.zeros_like(
-        predictions["tactic_labels"], dtype=np.float64
-    )
+    predictions["tactic_labels"] = np.zeros_like(predictions["tactic_labels"], dtype=np.float64)
     predictions["technique_labels"] = np.zeros_like(
         predictions["technique_labels"], dtype=np.float64
     )

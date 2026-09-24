@@ -180,8 +180,7 @@ def test_deployment_profile_is_cpu_for_the_documented_provider() -> None:
     assert bench.deployment_profile(["CPUExecutionProvider"]) == "cpu"
     assert bench.deployment_profile([]) == "accelerated"
     assert (
-        bench.deployment_profile(["CUDAExecutionProvider", "CPUExecutionProvider"])
-        == "accelerated"
+        bench.deployment_profile(["CUDAExecutionProvider", "CPUExecutionProvider"]) == "accelerated"
     )
 
 
@@ -300,8 +299,6 @@ def test_main_fails_closed_on_weak_profile(monkeypatch, tmp_path: Path, capsys) 
     weak["avx2"] = False
     monkeypatch.setattr(bench, "hardware_profile", lambda **kwargs: weak)
 
-    code = bench.main(
-        ["--artifact-dir", str(tmp_path), "--lengths", "8", "--iterations", "1"]
-    )
+    code = bench.main(["--artifact-dir", str(tmp_path), "--lengths", "8", "--iterations", "1"])
     capsys.readouterr()
     assert code == 1

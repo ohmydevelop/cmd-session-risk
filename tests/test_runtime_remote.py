@@ -114,8 +114,8 @@ def test_bootstrap_does_not_print_setup_url(tmp_path: Path) -> None:
         "printf '%s\\n' 'mkdir -p \"$HOME/.ssh\"'\n"
         "printf '%s\\n' 'printf key >\"$HOME/.ssh/lightning_rsa\"'\n"
         "printf '%s\\n' "
-        "'printf \"Host lightning.ai\\\\n  HostName ssh.lightning.ai\\\\n\" "
-        ">\"$HOME/.ssh/config\"'\n",
+        '\'printf "Host lightning.ai\\\\n  HostName ssh.lightning.ai\\\\n" '
+        '>"$HOME/.ssh/config"\'\n',
         encoding="utf-8",
     )
     curl.chmod(0o755)
@@ -253,9 +253,7 @@ def test_sync_preflight_remote_fails_without_cuda() -> None:
         return _Completed(0)
 
     try:
-        module.preflight_remote(
-            "user@example", "/tmp/data", require_cuda=True, runner=fake_runner
-        )
+        module.preflight_remote("user@example", "/tmp/data", require_cuda=True, runner=fake_runner)
     except module.SyncError as exc:
         assert "no_cuda_gpu" in str(exc)
     else:
@@ -285,8 +283,7 @@ def test_train_remote_never_leaks_setup_token_and_excludes_env_report(tmp_path: 
     def _fake(name: str, body: str) -> None:
         script = tools / name
         script.write_text(
-            "#!/usr/bin/env bash\n"
-            f'printf "%s\\n" "{name} $*" >> "$FAKE_LOG"\n' + body,
+            f'#!/usr/bin/env bash\nprintf "%s\\n" "{name} $*" >> "$FAKE_LOG"\n' + body,
             encoding="utf-8",
         )
         script.chmod(0o755)

@@ -53,7 +53,9 @@ def _transform(probability: float, source_temperature: float, target_temperature
     return float(_sigmoid(np.asarray([raw_logit / target_temperature]))[0])
 
 
-def _load_scores(path: Path, source_temperature: float, target_temperature: float) -> dict[str, dict[int, float]]:
+def _load_scores(
+    path: Path, source_temperature: float, target_temperature: float
+) -> dict[str, dict[int, float]]:
     scores: dict[str, dict[int, float]] = defaultdict(dict)
     with path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
@@ -167,7 +169,7 @@ def _int8_comparison(
     *,
     threshold: float,
 ) -> dict[str, Any]:
-    fp_targets = np.asarray(joined_fp32["targets"])
+    _fp_targets = np.asarray(joined_fp32["targets"])
     fp_probs = np.asarray(joined_fp32["probabilities"])
     int8_probs = np.asarray(joined_int8["probabilities"])
     fp_decisions = fp_probs >= threshold
@@ -183,9 +185,17 @@ def _int8_comparison(
 
     def _rates(decisions: list[bool]) -> dict[str, Any]:
         tp = sum(1 for decision, label in zip(decisions, labels, strict=True) if decision and label)
-        fn = sum(1 for decision, label in zip(decisions, labels, strict=True) if not decision and label)
-        fp = sum(1 for decision, label in zip(decisions, labels, strict=True) if decision and not label)
-        tn = sum(1 for decision, label in zip(decisions, labels, strict=True) if not decision and not label)
+        fn = sum(
+            1 for decision, label in zip(decisions, labels, strict=True) if not decision and label
+        )
+        fp = sum(
+            1 for decision, label in zip(decisions, labels, strict=True) if decision and not label
+        )
+        tn = sum(
+            1
+            for decision, label in zip(decisions, labels, strict=True)
+            if not decision and not label
+        )
         return {
             "true_positive": tp,
             "false_negative": fn,
@@ -207,16 +217,18 @@ def _int8_comparison(
     for session_id in session_ids:
         fp_commands = fp32_all.get(session_id, {})
         int8_commands = int8_all.get(session_id, {})
-        fp_first = next((index for index in sorted(fp_commands) if fp_commands[index] >= threshold), None)
-        int8_first = next((index for index in sorted(int8_commands) if int8_commands[index] >= threshold), None)
+        fp_first = next(
+            (index for index in sorted(fp_commands) if fp_commands[index] >= threshold), None
+        )
+        int8_first = next(
+            (index for index in sorted(int8_commands) if int8_commands[index] >= threshold), None
+        )
         if fp_first is None and int8_first is None:
             drift.append(0.0)
         elif fp_first is not None and int8_first is not None:
             drift.append(float(abs(fp_first - int8_first)))
         else:
-            max_index = max(
-                [*fp_commands.keys(), *int8_commands.keys(), 0]
-            )
+            max_index = max([*fp_commands.keys(), *int8_commands.keys(), 0])
             drift.append(float(max_index + 1))
 
     return {
@@ -231,8 +243,10 @@ def _int8_comparison(
         },
         "prefix_decision_agreement": float(np.mean(fp_decisions == int8_decisions)),
         "session_decision_agreement": sum(
-            left == right for left, right in zip(fp_session_decisions, int8_session_decisions, strict=True)
-        ) / len(session_ids),
+            left == right
+            for left, right in zip(fp_session_decisions, int8_session_decisions, strict=True)
+        )
+        / len(session_ids),
         "fp32": fp_rates,
         "int8": int8_rates,
         "delta_recall_int8_minus_fp32": _delta("recall"),
@@ -312,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
 
     fp32_dev = _load_scores(args.fp32_dev, args.source_temperature, args.target_temperature)
     fp32_test = _load_scores(args.fp32_test, args.source_temperature, args.target_temperature)
-    int8_dev = _load_scores(args.int8_dev, args.source_temperature, args.target_temperature)
+    _int8_dev = _load_scores(args.int8_dev, args.source_temperature, args.target_temperature)
     int8_test = _load_scores(args.int8_test, args.source_temperature, args.target_temperature)
 
     joined_dev = _join_prefixes(args.dev_data, vocabulary_path, fp32_dev)
@@ -373,7 +387,13 @@ def main(argv: list[str] | None = None) -> int:
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"dev": output["dev"], "test": output["test"], "int8": output["int8_comparison"]}, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {"dev": output["dev"], "test": output["test"], "int8": output["int8_comparison"]},
+            indent=2,
+            sort_keys=True,
+        )
+    )
     print(f"wrote {args.output}")
     return 0
 

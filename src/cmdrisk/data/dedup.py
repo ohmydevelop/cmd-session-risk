@@ -166,9 +166,7 @@ def assign_family_ids(
 
     if not 0.0 < threshold <= 1.0:
         raise ValueError("threshold must be in (0, 1]")
-    count = _validate_columns(
-        session_ids, explicit_family_ids, parent_session_ids, shingle_sets
-    )
+    count = _validate_columns(session_ids, explicit_family_ids, parent_session_ids, shingle_sets)
     if count == 0:
         return [], FamilyClusterStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 

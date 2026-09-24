@@ -39,9 +39,7 @@ def safe_artifact_relative(value: Any) -> str:
     if "\\" in value:
         raise ArtifactManifestError(f"unsafe artifact path: {value!r}")
     path = PurePosixPath(value)
-    if path.is_absolute() or not path.parts or any(
-        part in {"", ".", ".."} for part in path.parts
-    ):
+    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise ArtifactManifestError(f"unsafe artifact path: {value!r}")
     if path.parts[0] == EXPORT_MANIFEST_FILENAME:
         raise ArtifactManifestError("the export manifest cannot contain itself")
@@ -106,9 +104,7 @@ def _manifest_payload(
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
-        raise ArtifactManifestError(
-            f"required artifact manifest not found: {path.name}"
-        ) from exc
+        raise ArtifactManifestError(f"required artifact manifest not found: {path.name}") from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise ArtifactManifestError(f"cannot load artifact manifest {path.name}: {exc}") from exc
     if not isinstance(loaded, Mapping):
@@ -156,8 +152,10 @@ def verify_export_manifest(
             )
         expected_digest = raw_entry.get("sha256")
         expected_size = raw_entry.get("size")
-        if not isinstance(expected_digest, str) or len(expected_digest) != 64 or any(
-            char not in "0123456789abcdefABCDEF" for char in expected_digest
+        if (
+            not isinstance(expected_digest, str)
+            or len(expected_digest) != 64
+            or any(char not in "0123456789abcdefABCDEF" for char in expected_digest)
         ):
             raise ArtifactManifestError(f"invalid SHA256 for artifact: {normalised}")
         if (

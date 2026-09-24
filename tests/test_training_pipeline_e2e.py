@@ -87,9 +87,7 @@ def _tiny_tokenizer(max_length: int = 64) -> CommandTokenizer:
 
 
 def _build_tiny_backbone(root: Path) -> None:
-    values = json.loads(
-        (FIXTURES / "tiny_modernbert_config.json").read_text(encoding="utf-8")
-    )
+    values = json.loads((FIXTURES / "tiny_modernbert_config.json").read_text(encoding="utf-8"))
     backbone = ModernBertModel(ModernBertConfig(**values))
     backbone.save_pretrained(root)
     _tiny_tokenizer().save_pretrained(root)

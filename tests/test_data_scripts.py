@@ -450,9 +450,9 @@ def test_prepare_v2_writes_split_only_layout_with_ood_and_stress(tmp_path: Path)
         for line in (output / "test.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    non_holdout_rows = train + dev + [
-        row for row in test_rows if str(row["meta"].get("period")) != "2024"
-    ]
+    non_holdout_rows = (
+        train + dev + [row for row in test_rows if str(row["meta"].get("period")) != "2024"]
+    )
     realized = {
         bucket: sum(1 for row in non_holdout_rows if row["source"]["kind"] == kind)
         for bucket, kind in {

@@ -149,9 +149,7 @@ def _write_model_card(
     model_name: str,
     metrics: dict[str, Any] | None,
 ) -> None:
-    metric_block = (
-        json.dumps(metrics, indent=2, sort_keys=True) if metrics else "Not available"
-    )
+    metric_block = json.dumps(metrics, indent=2, sort_keys=True) if metrics else "Not available"
     (output_dir / "README.md").write_text(
         "\n".join(
             [
@@ -159,8 +157,7 @@ def _write_model_card(
                 "",
                 f"- Base checkpoint: `{checkpoint}`",
                 f"- Backbone: `{model_name}` (Apache-2.0)",
-                "- Outputs: malicious logit, 14 ATT&CK tactic logits, and dynamic "
-                "technique logits",
+                "- Outputs: malicious logit, 14 ATT&CK tactic logits, and dynamic technique logits",
                 "- Intended use: Unix/Linux command-prefix risk scoring and alerting",
                 "- Not intended for automatic blocking without independent validation",
                 "",
@@ -234,9 +231,7 @@ def _metrics_promotion_status(metrics: Mapping[str, Any] | None) -> dict[str, An
     }
 
 
-def _estimated_latency_value(
-    report: Mapping[str, Any], percentile_name: str
-) -> float | None:
+def _estimated_latency_value(report: Mapping[str, Any], percentile_name: str) -> float | None:
     direct_names = (
         (percentile_name, f"max_{percentile_name}", f"summary_{percentile_name}")
         if percentile_name == "p95_ms"
@@ -411,12 +406,8 @@ def update_export_manifest_latency(
     manifest = _read_json_object(manifest_path, description="export manifest")
     files = _collect_artifact_files(root)
     manifest["artifacts"] = build_artifact_entries(root, files)
-    manifest["checksums"] = {
-        name: entry["sha256"] for name, entry in manifest["artifacts"].items()
-    }
-    manifest["sizes"] = {
-        name: entry["size"] for name, entry in manifest["artifacts"].items()
-    }
+    manifest["checksums"] = {name: entry["sha256"] for name, entry in manifest["artifacts"].items()}
+    manifest["sizes"] = {name: entry["size"] for name, entry in manifest["artifacts"].items()}
     latency_integrity = artifact_entry(root, "latency_report.json")
     latency_status = _latency_report_status(
         report,
@@ -524,9 +515,7 @@ def export_onnx(
     with torch.inference_mode():
         reference = wrapper(input_ids, attention_mask)
     reference_values = [value.detach().cpu().numpy() for value in reference]
-    session = ort.InferenceSession(
-        str(fp32_path), providers=["CPUExecutionProvider"]
-    )
+    session = ort.InferenceSession(str(fp32_path), providers=["CPUExecutionProvider"])
     onnx_values = session.run(
         None,
         {
@@ -555,9 +544,7 @@ def export_onnx(
             weight_type=QuantType.QInt8,
             per_channel=True,
         )
-        int8_session = ort.InferenceSession(
-            str(int8_path), providers=["CPUExecutionProvider"]
-        )
+        int8_session = ort.InferenceSession(str(int8_path), providers=["CPUExecutionProvider"])
         int8_values = int8_session.run(
             None,
             {
@@ -633,14 +620,10 @@ def export_onnx(
         "label_vocabulary": "labels.json",
         "runtime_config": RUNTIME_CONFIG_FILENAME,
         "model_version": resolved_version,
-        "calibration": "calibration.json"
-        if (destination / "calibration.json").is_file()
-        else None,
+        "calibration": "calibration.json" if (destination / "calibration.json").is_file() else None,
         "metrics": "metrics.json" if copied_metrics.is_file() else None,
         "artifacts": artifacts,
-        "checksums": {
-            name: entry["sha256"] for name, entry in artifacts.items()
-        },
+        "checksums": {name: entry["sha256"] for name, entry in artifacts.items()},
         "sizes": {name: entry["size"] for name, entry in artifacts.items()},
         "latency": latency_status,
         "promotion": promotion,

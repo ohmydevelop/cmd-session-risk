@@ -85,7 +85,9 @@ def test_merge_checkpoints_honours_explicit_weights(tmp_path: Path) -> None:
     assert torch.allclose(merged["weight"], torch.full((2, 3), 2.5))
 
 
-def test_merge_checkpoints_last_n_selects_numerically_latest_and_refuses_overwrite(tmp_path: Path) -> None:
+def test_merge_checkpoints_last_n_selects_numerically_latest_and_refuses_overwrite(
+    tmp_path: Path,
+) -> None:
     for index, scale in enumerate((1, 2, 3), start=1):
         _make_checkpoint(tmp_path / f"checkpoint-{index * 10}", scale)
 
@@ -96,7 +98,15 @@ def test_merge_checkpoints_last_n_selects_numerically_latest_and_refuses_overwri
     merged = load_file(str(output / "model.safetensors"))
     assert torch.allclose(merged["weight"], torch.full((2, 3), 2.5))
 
-    blocked = _run("--glob", str(tmp_path / "checkpoint-*"), "--last", "2", "--output-dir", str(output), check=False)
+    blocked = _run(
+        "--glob",
+        str(tmp_path / "checkpoint-*"),
+        "--last",
+        "2",
+        "--output-dir",
+        str(output),
+        check=False,
+    )
     assert blocked.returncode != 0
     assert "force" in blocked.stderr
 

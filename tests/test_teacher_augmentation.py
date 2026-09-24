@@ -254,9 +254,7 @@ def _reviewer_configs(model: str = "generator-model") -> dict[str, ModelConfig]:
 
 def test_malicious_augmentation_rejects_generator_validator_identity_overlap() -> None:
     configs = _reviewer_configs()
-    configs["validator_1"] = configs["generator"].model_copy(
-        update={"role": "validator_1"}
-    )
+    configs["validator_1"] = configs["generator"].model_copy(update={"role": "validator_1"})
     with pytest.raises(ConfigurationError, match="must be distinct"):
         MaliciousAugmenter(
             FakeMaliciousModel(count=8),
@@ -267,9 +265,7 @@ def test_malicious_augmentation_rejects_generator_validator_identity_overlap() -
 
 def test_hard_negative_generator_rejects_generator_validator_identity_overlap() -> None:
     configs = _reviewer_configs()
-    configs["validator_1"] = configs["generator"].model_copy(
-        update={"role": "validator_1"}
-    )
+    configs["validator_1"] = configs["generator"].model_copy(update={"role": "validator_1"})
     with pytest.raises(ConfigurationError, match="must be distinct"):
         HardNegativeGenerator(
             FakeHardNegativeModel(count=2),

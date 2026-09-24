@@ -144,12 +144,8 @@ def prepare_sessions_v2_with_stats(
     raw = list(records)
     normalized = [normalize_record(record) for record in raw]
     holdout_flags = [is_temporal_holdout(record, period=holdout_period) for record in normalized]
-    base_raw = [
-        record for record, flag in zip(normalized, holdout_flags, strict=True) if not flag
-    ]
-    holdout_raw = [
-        record for record, flag in zip(normalized, holdout_flags, strict=True) if flag
-    ]
+    base_raw = [record for record, flag in zip(normalized, holdout_flags, strict=True) if not flag]
+    holdout_raw = [record for record, flag in zip(normalized, holdout_flags, strict=True) if flag]
 
     def _dedup(values: list[SessionRecord]) -> tuple[list[SessionRecord], list[SessionRecord]]:
         exact = exact_deduplicate(values)
@@ -297,9 +293,7 @@ def provenance_report(
         }
 
     total_commands = sum(len(record.commands) for record in values)
-    missing_dt = sum(
-        event.dt is None for record in values for event in record.commands
-    )
+    missing_dt = sum(event.dt is None for record in values for event in record.commands)
     quota_requested = dict(requested_quota or DEFAULT_QUOTA)
     quota_realized_counts = Counter(source_bucket(record) for record in values)
     quota_realized = _ratio_map(quota_realized_counts, len(values))

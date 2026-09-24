@@ -20,7 +20,6 @@ import argparse
 import json
 import math
 import sys
-from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -74,14 +73,10 @@ def _delta_summary(counts: dict[float, int]) -> dict[str, float | None]:
     }
 
 
-def _first_truncated_length(
-    scorer: Any, commands: list[tuple[str, float | None]]
-) -> int | None:
+def _first_truncated_length(scorer: Any, commands: list[tuple[str, float | None]]) -> int | None:
     tokenizer = scorer._tokenizer
     for length in range(1, len(commands) + 1):
-        encoded = tokenizer.encode(
-            [{"cmd": cmd, "dt": dt} for cmd, dt in commands[:length]]
-        )
+        encoded = tokenizer.encode([{"cmd": cmd, "dt": dt} for cmd, dt in commands[:length]])
         if encoded.truncated:
             return length
     return None
@@ -189,9 +184,7 @@ def main(argv: list[str] | None = None) -> int:
                 fp_entries = fp32.score_batch(chunk)
                 int8_entries = int8.score_batch(chunk)
             except ScoringError as exc:
-                raise SystemExit(
-                    f"scoring failed for {record.get('session_id')}: {exc}"
-                ) from exc
+                raise SystemExit(f"scoring failed for {record.get('session_id')}: {exc}") from exc
             for local_index, (fp_entry, int8_entry) in enumerate(
                 zip(fp_entries, int8_entries, strict=True)
             ):
@@ -251,9 +244,7 @@ def main(argv: list[str] | None = None) -> int:
 
     fp_rates = _rates(fp_decisions, labels)
     int8_rates = _rates(int8_decisions, labels)
-    session_agree = sum(
-        1 for a, b in zip(fp_decisions, int8_decisions, strict=True) if a == b
-    )
+    session_agree = sum(1 for a, b in zip(fp_decisions, int8_decisions, strict=True) if a == b)
 
     def _delta(key: str) -> float | None:
         left = int8_rates.get(key)
@@ -280,9 +271,7 @@ def main(argv: list[str] | None = None) -> int:
             "session_tail_tokens": int(tokenizer.session_tail_tokens),
         },
         "prefix_probability_delta": _delta_summary(delta_counts),
-        "prefix_decision_agreement": (
-            prefix_agree / prefix_total if prefix_total else None
-        ),
+        "prefix_decision_agreement": (prefix_agree / prefix_total if prefix_total else None),
         "session_decision_agreement": session_agree / len(labels),
         "fp32": fp_rates,
         "int8": int8_rates,

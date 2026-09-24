@@ -195,8 +195,7 @@ class ProxyAuditor:
             blockers.append("prediction_labels_missing")
         elif prediction_metrics.scored_cases < resolved:
             blockers.append(
-                "prediction_labels_incomplete:"
-                f"{prediction_metrics.scored_cases}<{resolved}"
+                f"prediction_labels_incomplete:{prediction_metrics.scored_cases}<{resolved}"
             )
         return ProxyAuditReport(
             total_cases=len(results),
@@ -297,8 +296,7 @@ def _adjudicate(
     evidence = [
         vote.first_evidence_index
         for vote in malicious_votes
-        if vote.first_evidence_index is not None
-        and vote.first_evidence_index < command_count
+        if vote.first_evidence_index is not None and vote.first_evidence_index < command_count
     ]
     if not evidence:
         return _unresolved_result(
@@ -363,9 +361,7 @@ def _technique_evidence(
             if technique is None:
                 continue
             valid_indices = {
-                index
-                for index in raw_indices
-                if first_evidence <= index < command_count
+                index for index in raw_indices if first_evidence <= index < command_count
             }
             if valid_indices:
                 by_technique.setdefault(technique, {})[vote.reviewer] = valid_indices
@@ -406,11 +402,7 @@ def _prediction_metrics(
 
     if threshold < 0 or threshold > 1:
         raise ValueError("threshold must be between 0 and 1")
-    resolved = [
-        (case, result)
-        for case, result in pairs
-        if result.consensus != "unresolved"
-    ]
+    resolved = [(case, result) for case, result in pairs if result.consensus != "unresolved"]
     scored: list[tuple[int, int]] = []
     brier_values: list[float] = []
     unpredicted = 0
@@ -432,17 +424,11 @@ def _prediction_metrics(
     positives = true_positive + false_negative
     negatives = true_negative + false_positive
     precision = (
-        true_positive / (true_positive + false_positive)
-        if true_positive + false_positive
-        else None
+        true_positive / (true_positive + false_positive) if true_positive + false_positive else None
     )
     recall = true_positive / positives if positives else None
     false_positive_rate = false_positive / negatives if negatives else None
-    accuracy = (
-        (true_positive + true_negative) / len(scored)
-        if scored
-        else None
-    )
+    accuracy = (true_positive + true_negative) / len(scored) if scored else None
     return ProxyAuditMetrics(
         resolved_cases=len(resolved),
         scored_cases=len(scored),
@@ -503,16 +489,11 @@ def _fleiss_kappa(results: list[ProxyAuditResult]) -> tuple[float | None, int]:
     ]
     if not eligible:
         return None, 0
-    categories = sorted(
-        {vote.decision for result in eligible for vote in result.votes}
-    )
+    categories = sorted({vote.decision for result in eligible for vote in result.votes})
     if len(categories) < 2:
         return None, len(eligible)
     category_index = {category: index for index, category in enumerate(categories)}
-    matrix = [
-        [0] * len(categories)
-        for _ in eligible
-    ]
+    matrix = [[0] * len(categories) for _ in eligible]
     for row, result in enumerate(eligible):
         for vote in result.votes:
             matrix[row][category_index[vote.decision]] += 1
@@ -526,10 +507,7 @@ def _fleiss_kappa(results: list[ProxyAuditResult]) -> tuple[float | None, int]:
         for row, reviewer_count in zip(matrix, reviewer_counts, strict=True)
     ) / len(matrix)
     total_ratings = sum(reviewer_counts)
-    column_totals = [
-        sum(row[index] for row in matrix)
-        for index in range(len(categories))
-    ]
+    column_totals = [sum(row[index] for row in matrix) for index in range(len(categories))]
     p_e = sum((total / total_ratings) ** 2 for total in column_totals)
     if abs(1.0 - p_e) < 1e-12:
         return None, len(eligible)

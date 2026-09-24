@@ -73,10 +73,7 @@ def create_sha256_manifest(
         files.sort(key=lambda path: path.relative_to(root_path).as_posix())
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        f"{sha256_file(path)}  {path.relative_to(root_path).as_posix()}"
-        for path in files
-    ]
+    lines = [f"{sha256_file(path)}  {path.relative_to(root_path).as_posix()}" for path in files]
     destination.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     return destination
 
@@ -110,9 +107,7 @@ def parse_sha256_manifest(path: str | Path) -> list[tuple[str, str]]:
     return entries
 
 
-def verify_sha256_manifest(
-    root: str | Path, manifest_path: str | Path
-) -> dict[str, Any]:
+def verify_sha256_manifest(root: str | Path, manifest_path: str | Path) -> dict[str, Any]:
     """Verify every file and return a compact report."""
 
     root_path = Path(root).expanduser().resolve()
@@ -226,9 +221,7 @@ def run_ssh(
 ) -> subprocess.CompletedProcess[str]:
     """Run a command on the remote host, failing closed on transport errors."""
 
-    command = _ssh_command(
-        ssh_target, remote_command, ssh_port=ssh_port, ssh_key=ssh_key
-    )
+    command = _ssh_command(ssh_target, remote_command, ssh_port=ssh_port, ssh_key=ssh_key)
     try:
         return runner(command, check=False, text=True, capture_output=True)
     except (FileNotFoundError, OSError) as exc:
@@ -242,9 +235,7 @@ def check_connectivity(
     ssh_key: str | None = None,
     runner: Any = subprocess.run,
 ) -> None:
-    completed = run_ssh(
-        ssh_target, "true", ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
-    )
+    completed = run_ssh(ssh_target, "true", ssh_port=ssh_port, ssh_key=ssh_key, runner=runner)
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
         raise SyncError(f"cannot reach remote host {ssh_target}: {detail}")
@@ -268,12 +259,8 @@ def remote_disk_free_bytes(
 ) -> int:
     """Return free bytes for the filesystem backing ``remote_path``."""
 
-    command = (
-        f"df -Pk {shlex.quote(remote_path)} 2>/dev/null | tail -n 1 | awk '{{print $4}}'"
-    )
-    completed = run_ssh(
-        ssh_target, command, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
-    )
+    command = f"df -Pk {shlex.quote(remote_path)} 2>/dev/null | tail -n 1 | awk '{{print $4}}'"
+    completed = run_ssh(ssh_target, command, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner)
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
         raise SyncError(f"remote disk check failed: {detail}")
@@ -293,12 +280,9 @@ def remote_gpu_report(
     """Return remote GPU availability without failing when nvidia-smi is absent."""
 
     command = (
-        "nvidia-smi --query-gpu=name,memory.total "
-        "--format=csv,noheader,nounits 2>/dev/null || true"
+        "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null || true"
     )
-    completed = run_ssh(
-        ssh_target, command, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
-    )
+    completed = run_ssh(ssh_target, command, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner)
     devices: list[dict[str, Any]] = []
     for line in (completed.stdout or "").splitlines():
         fields = [field.strip() for field in line.split(",")]
@@ -332,9 +316,7 @@ def preflight_remote(
 
     if not ssh_target:
         raise SyncError("an SSH target is required")
-    check_connectivity(
-        ssh_target, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
-    )
+    check_connectivity(ssh_target, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner)
 
     failures: list[str] = []
     report: dict[str, Any] = {"ssh_target": ssh_target, "remote_path": remote_path}
@@ -347,9 +329,7 @@ def preflight_remote(
         failures.append(f"insufficient_free_disk<{min_free_disk_gb:g}GiB")
 
     if require_cuda or min_vram_gb > 0:
-        gpu = remote_gpu_report(
-            ssh_target, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner
-        )
+        gpu = remote_gpu_report(ssh_target, ssh_port=ssh_port, ssh_key=ssh_key, runner=runner)
         report["gpu"] = gpu
         if require_cuda and gpu["count"] < 1:
             failures.append("no_cuda_gpu")
@@ -359,9 +339,7 @@ def preflight_remote(
     report["passed"] = not failures
     report["failures"] = failures
     if failures:
-        raise SyncError(
-            "remote preflight failed: " + ", ".join(failures)
-        )
+        raise SyncError("remote preflight failed: " + ", ".join(failures))
     return report
 
 

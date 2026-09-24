@@ -80,13 +80,9 @@ def test_conflict_uses_c_and_two_to_one_is_medium_isolated() -> None:
     )
     decision = ConsensusLabeler(
         {
-            "A": FakeLabelModel(
-                _response(True, 3, techniques={"T1105": [3], "T1222": [3]})
-            ),
+            "A": FakeLabelModel(_response(True, 3, techniques={"T1105": [3], "T1222": [3]})),
             "B": FakeLabelModel(_response(False, None)),
-            "C": FakeLabelModel(
-                _response(True, 3, techniques={"T1105": [3], "T1222": [3]})
-            ),
+            "C": FakeLabelModel(_response(True, 3, techniques={"T1105": [3], "T1222": [3]})),
         }
     ).label(session)
     assert decision.consensus == "medium"

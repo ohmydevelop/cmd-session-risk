@@ -11,6 +11,7 @@ Usage:
       --threshold 1.179935351014905e-04 --temperature 0.7969617216679871
       --out artifacts/<run>/v6_gates.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,9 +40,9 @@ FILES = {
 
 
 def score_file(sess, tokenizer, path: Path, temperature: float, threshold: float) -> dict:
-    rows = [json.loads(l) for l in path.open() if l.strip()]
+    rows = [json.loads(row_line) for row_line in path.open() if row_line.strip()]
     decisions, probs = [], []
-    for idx, row in enumerate(rows, 1):
+    for _, row in enumerate(rows, 1):
         cmds = [(c["cmd"], c.get("dt")) for c in row["commands"]]
         enc = tokenizer.encode([{"cmd": cmd, "dt": dt} for cmd, dt in cmds])
         ids = list(enc.input_ids)
@@ -74,15 +75,17 @@ def main() -> int:
     args = ap.parse_args()
 
     import onnxruntime as ort
+
     tok = CommandTokenizer.from_pretrained(
-        args.artifact_dir, max_length=256, command_max_tokens=128)
+        args.artifact_dir, max_length=256, command_max_tokens=128
+    )
     sess = ort.InferenceSession(
-        f"{args.artifact_dir}/model.onnx", providers=["CPUExecutionProvider"])
+        f"{args.artifact_dir}/model.onnx", providers=["CPUExecutionProvider"]
+    )
 
     results, decisions = {}, {}
     for gate_name, fname in FILES.items():
-        r = score_file(sess, tok, Path(args.eval_dir) / fname,
-                       args.temperature, args.threshold)
+        r = score_file(sess, tok, Path(args.eval_dir) / fname, args.temperature, args.threshold)
         if r["rows"] == 0:
             decisions[gate_name] = False
             r["pass"] = False
@@ -103,35 +106,50 @@ def main() -> int:
         results[gate_name] = r
 
     # pooled threshold-free ranking: all catastrophic positives vs benign twins
-    from collections import OrderedDict
-    auc_scores: OrderedDict = OrderedDict
-    ys: list = [1]; ss: list = []
+    ss: list = []
+
     def _auc(y, s):
-        pos = [v for v, lab in zip(s, y) if lab == 1]
-        neg = [v for v, lab in zip(s, y) if lab == 0]
+        pos = [v for v, lab in zip(s, y, strict=True) if lab == 1]
+        neg = [v for v, lab in zip(s, y, strict=True) if lab == 0]
         if not pos or not neg:
             return None
-        return float(sum((p > n) + 0.5 * (p == n) for p in pos for n in neg) / (len(pos) * len(neg)))
+        return float(
+            sum((p > n) + 0.5 * (p == n) for p in pos for n in neg) / (len(pos) * len(neg))
+        )
 
     ys, ss = [], []
     for gate_name in ("critical_single_command_recall", "obfuscation_set_recall"):
-        rows = [json.loads(l) for l in (Path(args.eval_dir) / FILES[gate_name]).open() if l.strip()]
+        rows = [
+            json.loads(row_line)
+            for row_line in (Path(args.eval_dir) / FILES[gate_name]).open()
+            if row_line.strip()
+        ]
         for row in rows:
             cmds = [(c["cmd"], c.get("dt")) for c in row["commands"]]
             enc = tok.encode([{"cmd": cmd, "dt": dt} for cmd, dt in cmds])
             ids = list(enc.input_ids)[:256]
-            feed = {"input_ids": np.array([ids], np.int64),
-                    "attention_mask": np.ones((1, len(ids)), np.int64)}
+            feed = {
+                "input_ids": np.array([ids], np.int64),
+                "attention_mask": np.ones((1, len(ids)), np.int64),
+            }
             logit = float(sess.run(None, feed)[0][0])
-            ys.append(1); ss.append(1.0 / (1.0 + math.exp(-logit / args.temperature)))
-    for row in [json.loads(l) for l in (Path(args.eval_dir) / FILES["benign_twin_fpr"]).open() if l.strip()]:
+            ys.append(1)
+            ss.append(1.0 / (1.0 + math.exp(-logit / args.temperature)))
+    for row in [
+        json.loads(row_line)
+        for row_line in (Path(args.eval_dir) / FILES["benign_twin_fpr"]).open()
+        if row_line.strip()
+    ]:
         cmds = [(c["cmd"], c.get("dt")) for c in row["commands"]]
         enc = tok.encode([{"cmd": cmd, "dt": dt} for cmd, dt in cmds])
         ids = list(enc.input_ids)[:256]
-        feed = {"input_ids": np.array([ids], np.int64),
-                "attention_mask": np.ones((1, len(ids)), np.int64)}
+        feed = {
+            "input_ids": np.array([ids], np.int64),
+            "attention_mask": np.ones((1, len(ids)), np.int64),
+        }
         logit = float(sess.run(None, feed)[0][0])
-        ys.append(0); ss.append(1.0 / (1.0 + math.exp(-logit / args.temperature)))
+        ys.append(0)
+        ss.append(1.0 / (1.0 + math.exp(-logit / args.temperature)))
     pooled_auc = _auc(ys, ss)
 
     overall = all(decisions.values())
@@ -145,12 +163,22 @@ def main() -> int:
         "pooled_roc_auc_pos_vs_benign_twins": pooled_auc,
     }
     Path(args.out).write_text(json.dumps(out, indent=2) + "\n")
-    print(f"critical_single_command_recall = {results['critical_single_command_recall']['value']:.6f} "
-          f"(target>={GATES['critical_single_command_recall']}) pass={decisions['critical_single_command_recall']}")
-    print(f"obfuscation_set_recall        = {results['obfuscation_set_recall']['value']:.6f} "
-          f"(target>={GATES['obfuscation_set_recall']}) pass={decisions['obfuscation_set_recall']}")
-    print(f"benign_twin_fpr               = {results['benign_twin_fpr']['value']:.6f} "
-          f"(target<={GATES['benign_twin_fpr']}) pass={decisions['benign_twin_fpr']}")
+    crit_res = results["critical_single_command_recall"]
+    print(
+        f"critical_single_command_recall = {crit_res['value']:.6f} "
+        f"(target>={GATES['critical_single_command_recall']}) "
+        f"pass={decisions['critical_single_command_recall']}"
+    )
+    obf_res = results["obfuscation_set_recall"]
+    print(
+        f"obfuscation_set_recall        = {obf_res['value']:.6f} "
+        f"(target>={GATES['obfuscation_set_recall']}) "
+        f"pass={decisions['obfuscation_set_recall']}"
+    )
+    print(
+        f"benign_twin_fpr               = {results['benign_twin_fpr']['value']:.6f} "
+        f"(target<={GATES['benign_twin_fpr']}) pass={decisions['benign_twin_fpr']}"
+    )
     print(f"overall: {'PASS' if overall else 'FAIL'}")
     return 0 if overall else 1
 

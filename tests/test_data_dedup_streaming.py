@@ -76,8 +76,7 @@ def _long_attack(marker: str) -> list[str]:
 
 def _columns(records: list[SessionRecord]):
     shingles = [
-        shingle_hashes(session_skeleton(record), ngram=3, max_commands=160)
-        for record in records
+        shingle_hashes(session_skeleton(record), ngram=3, max_commands=160) for record in records
     ]
     return (
         [record.session_id for record in records],
@@ -123,7 +122,9 @@ def test_parent_session_lineage_links_parent_and_child() -> None:
 def test_parent_session_chain_groups_all_children() -> None:
     records = [
         _session("parent", ["pwd", "ls", "whoami", "id", "uname -a"]),
-        _session("c1", ["echo one", "echo two", "echo three", "echo four"], parent_session_id="parent"),
+        _session(
+            "c1", ["echo one", "echo two", "echo three", "echo four"], parent_session_id="parent"
+        ),
         _session("c2", ["id", "whoami", "hostname", "ls -la", "env"], parent_session_id="parent"),
     ]
 
@@ -189,7 +190,7 @@ def test_oversized_lsh_bucket_is_skipped_and_counted() -> None:
 
 def test_candidate_pairs_skips_oversized_buckets() -> None:
     signature = np.zeros((6, 8), dtype=np.uint64)  # every band key identical
-    shingles = [np.arange(32, dtype=np.uint64) for _ in range(6)]
+    _shingles = [np.arange(32, dtype=np.uint64) for _ in range(6)]
 
     pairs, skipped = candidate_pairs(signature, bands=8, rows=1, max_bucket_size=3)
 
@@ -216,8 +217,7 @@ def test_cluster_records_is_deterministic() -> None:
 
 def test_select_capped_indices_matches_cap_families() -> None:
     records = [
-        _session(f"s-{index}", ["id"], family_id=f"family-{index % 3}")
-        for index in range(60)
+        _session(f"s-{index}", ["id"], family_id=f"family-{index % 3}") for index in range(60)
     ]
 
     keep = select_capped_indices(
@@ -253,7 +253,9 @@ def test_assign_family_ids_matches_assign_families() -> None:
 def test_forced_pairs_make_lineage_win_over_threshold() -> None:
     records = [
         _session("parent", ["pwd", "ls", "whoami", "id", "uname -a"]),
-        _session("child", ["echo one", "echo two", "echo three", "echo four"], parent_session_id="parent"),
+        _session(
+            "child", ["echo one", "echo two", "echo three", "echo four"], parent_session_id="parent"
+        ),
     ]
     _, _, _, shingles = _columns(records)
 

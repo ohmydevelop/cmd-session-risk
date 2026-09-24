@@ -80,9 +80,7 @@ def test_dt_rejects_negative_values() -> None:
 
 def test_command_stream_uses_markers_and_dt_bucket() -> None:
     tokenizer = CommandTokenizer(FakeTokenizer())
-    encoded = tokenizer.encode(
-        [{"cmd": "whoami", "dt": 0}, {"cmd": "uname", "dt": None}]
-    )
+    encoded = tokenizer.encode([{"cmd": "whoami", "dt": 0}, {"cmd": "uname", "dt": None}])
     ids = list(encoded.input_ids)
     assert ids[0] == tokenizer.special_token_id(SESSION_TOKEN)
     assert ids[-1] == tokenizer.special_token_id(SESSION_END_TOKEN)

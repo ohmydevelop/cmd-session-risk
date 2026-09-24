@@ -6,6 +6,7 @@ evaluates every candidate threshold produced by the production recalibration
 sweep (`recalibration_sweep.json` rows), reporting which candidates pass all
 three v6 gates together with their session-level FPR trade-off.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,10 +57,13 @@ def main() -> int:
     args = ap.parse_args()
 
     import onnxruntime as ort
-    tok = CommandTokenizer.from_pretrained(args.artifact_dir, max_length=256,
-                                           command_max_tokens=128)
-    sess = ort.InferenceSession(f"{args.artifact_dir}/model.onnx",
-                                providers=["CPUExecutionProvider"])
+
+    tok = CommandTokenizer.from_pretrained(
+        args.artifact_dir, max_length=256, command_max_tokens=128
+    )
+    sess = ort.InferenceSession(
+        f"{args.artifact_dir}/model.onnx", providers=["CPUExecutionProvider"]
+    )
     evald = Path(args.eval_dir)
     crit = score(sess, tok, evald / "critical_singles_eval.jsonl", args.temperature)
     obf = score(sess, tok, evald / "obfuscation_eval.jsonl", args.temperature)
@@ -73,9 +77,11 @@ def main() -> int:
         crit_rec = float(np.mean(crit >= th))
         obf_rec = float(np.mean(obf >= th))
         ben_fpr = float(np.mean(ben >= th))
-        ok = (crit_rec >= GATES["critical_single_command_recall"]
-              and obf_rec >= GATES["obfuscation_set_recall"]
-              and ben_fpr <= GATES["benign_twin_fpr"])
+        ok = (
+            crit_rec >= GATES["critical_single_command_recall"]
+            and obf_rec >= GATES["obfuscation_set_recall"]
+            and ben_fpr <= GATES["benign_twin_fpr"]
+        )
         session_fpr = row.get("session_fpr", row.get("fpr", None))
         entry = {
             "threshold": th,
@@ -89,15 +95,15 @@ def main() -> int:
         if ok:
             passing.append(entry)
     passing.sort(key=lambda r: (r["session_fpr"] is None, r["session_fpr"] or 1.0))
-    out = {"candidates": len(rows), "passing": passing,
-           "gate_targets": GATES}
+    out = {"candidates": len(rows), "passing": passing, "gate_targets": GATES}
     Path(args.out).write_text(json.dumps(out, indent=2) + "\n")
-    print(f"evaluated {len(rows)} threshold candidates; "
-          f"{len(passing)} pass all three v6 gates")
+    print(f"evaluated {len(rows)} threshold candidates; {len(passing)} pass all three v6 gates")
     for entry in passing[:5]:
-        print(f"  th={entry['threshold']:.6e} crit={entry['critical_recall']:.4f} "
-              f"obf={entry['obfuscation_recall']:.4f} ben_fpr={entry['benign_twin_fpr']:.4f} "
-              f"session_fpr={entry['session_fpr']}")
+        print(
+            f"  th={entry['threshold']:.6e} crit={entry['critical_recall']:.4f} "
+            f"obf={entry['obfuscation_recall']:.4f} ben_fpr={entry['benign_twin_fpr']:.4f} "
+            f"session_fpr={entry['session_fpr']}"
+        )
     return 0
 
 

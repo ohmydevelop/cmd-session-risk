@@ -9,6 +9,7 @@ Metrics are threshold-free where possible:
   - ROC-AUC of the malicious-label score vs ground truth
   - recall at the threshold that keeps benign_twins FPR <= 0.02
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,8 +27,8 @@ def roc_auc(y: np.ndarray, s: np.ndarray) -> float:
     if len(pos) == 0 or len(neg) == 0:
         return float("nan")
     auc = 0.0
-    for p in pos:
-        auc += float(np.mean(p > neg)) + 0.5 * float(np.mean(p == neg))
+    for score in pos:
+        auc += float(np.mean(score > neg)) + 0.5 * float(np.mean(score == neg))
     return auc / max(1, len(pos))
 
 
@@ -44,17 +45,20 @@ def main() -> int:
     model = GLiClassModel.from_pretrained(args.model)
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     pipe = ZeroShotClassificationPipeline(
-        model, tokenizer, classification_type="multi-label", device="cpu")
-    classes = ["malicious command that will damage the system",
-               "benign routine command"]
+        model, tokenizer, classification_type="multi-label", device="cpu"
+    )
+    classes = ["malicious command that will damage the system", "benign routine command"]
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     results = {"model": args.model, "slices": {}}
     threshold = None
 
     def records(name: str):
-        return [json.loads(l) for l in
-                (Path(args.eval_dir) / name).open() if l.strip()]
+        return [
+            json.loads(row_line)
+            for row_line in (Path(args.eval_dir) / name).open()
+            if row_line.strip()
+        ]
 
     # benign twins first: pick score threshold with FPR <= 0.02
     ben = records("benign_twins_eval.jsonl")
@@ -70,9 +74,11 @@ def main() -> int:
         threshold = float(t_vals)
     results["threshold_by_benign_fpr_0.02"] = threshold
 
-    for evname, label in (("critical_singles_eval.jsonl", "critical"),
-                          ("obfuscation_eval.jsonl", "obfuscation"),
-                          ("benign_twins_eval.jsonl", "benign")):
+    for evname, label in (
+        ("critical_singles_eval.jsonl", "critical"),
+        ("obfuscation_eval.jsonl", "obfuscation"),
+        ("benign_twins_eval.jsonl", "benign"),
+    ):
         rows = records(evname)
         y, s = [], []
         for r in rows:
@@ -82,7 +88,8 @@ def main() -> int:
             score = float(vals.get(classes[0], 0.0))
             y.append(0 if label == "benign" else 1)
             s.append(score)
-        y = np.asarray(y); s = np.asarray(s)
+        y = np.asarray(y)
+        s = np.asarray(s)
         slice_res = {
             "n": int(len(y)),
             "roc_auc": roc_auc(y, s) if label != "benign" else None,
@@ -91,8 +98,11 @@ def main() -> int:
         if label != "benign" and threshold is not None:
             slice_res["recall_at_fpr_0.02_threshold"] = float(np.mean(s >= threshold))
         results["slices"][label] = slice_res
-        print(f"{label:10s} n={int(len(y)):5d} score_mean={s.mean():.4f} "
-              f"score_p50={np.median(s):.4f}", end="")
+        print(
+            f"{label:10s} n={int(len(y)):5d} score_mean={s.mean():.4f} "
+            f"score_p50={np.median(s):.4f}",
+            end="",
+        )
         if slice_res["roc_auc"] is not None:
             print(f" roc_auc={slice_res['roc_auc']:.4f}", end="")
         if slice_res["recall_at_fpr_0.02_threshold"] is not None:
@@ -101,16 +111,19 @@ def main() -> int:
 
     # pooled AUC: all catastrophic positives as y=1, benign twins as y=0
     y_all, s_all = [], []
-    for evname, label in (("critical_singles_eval.jsonl", 1),
-                          ("obfuscation_eval.jsonl", 1),
-                          ("benign_twins_eval.jsonl", 0)):
+    for evname, label in (
+        ("critical_singles_eval.jsonl", 1),
+        ("obfuscation_eval.jsonl", 1),
+        ("benign_twins_eval.jsonl", 0),
+    ):
         for r in records(evname):
             text = r["commands"][0]["cmd"]
             res = pipe(text, classes, threshold=0.0)[0]
             vals = {rr["label"]: rr["score"] for rr in res}
             y_all.append(label)
             s_all.append(float(vals.get(classes[0], 0.0)))
-    y_all = np.asarray(y_all); s_all = np.asarray(s_all)
+    y_all = np.asarray(y_all)
+    s_all = np.asarray(s_all)
     results["pooled_roc_auc"] = roc_auc(y_all, s_all)
     print(f"pooled ROC-AUC (pos vs benign twins) = {results['pooled_roc_auc']:.4f}")
 

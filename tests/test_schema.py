@@ -85,9 +85,7 @@ def test_taxonomy_map_resolves_and_covers_corpus_techniques() -> None:
     assert set(TECHNIQUE_TO_TACTICS) <= set(TECHNIQUE_NAMES)
     assert all(TECHNIQUE_TO_TACTICS[technique] for technique in TECHNIQUE_TO_TACTICS)
     assert {
-        tactic_id
-        for tactic_ids in TECHNIQUE_TO_TACTICS.values()
-        for tactic_id in tactic_ids
+        tactic_id for tactic_ids in TECHNIQUE_TO_TACTICS.values() for tactic_id in tactic_ids
     } <= set(TACTIC_BY_ID)
 
     assert tactics_for_techniques(["T1059"]) == ["TA0002"]

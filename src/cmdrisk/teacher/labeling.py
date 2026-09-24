@@ -131,11 +131,7 @@ class ConsensusLabeler:
             for vote in votes.values()
             if vote.malicious and vote.first_evidence_index is not None
         ]
-        evidence_span = (
-            max(malicious_indices) - min(malicious_indices)
-            if malicious_indices
-            else 0
-        )
+        evidence_span = max(malicious_indices) - min(malicious_indices) if malicious_indices else 0
         if evidence_span > self.first_evidence_tolerance:
             return False
         return True
@@ -180,9 +176,7 @@ class ConsensusLabeler:
         votes: Mapping[str, TeacherLabelResponse],
         first_evidence_index: int,
     ) -> dict[str, list[int]]:
-        by_technique: dict[str, dict[str, set[int]]] = defaultdict(
-            lambda: defaultdict(set)
-        )
+        by_technique: dict[str, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
         for role, vote in votes.items():
             for raw_technique, raw_indices in vote.technique_evidence.items():
                 technique = normalize_technique(raw_technique)
@@ -198,9 +192,7 @@ class ConsensusLabeler:
 
         required_votes = 2 if len(votes) == 2 else 2
         return {
-            technique: sorted(
-                set().union(*(indices for indices in role_indices.values()))
-            )
+            technique: sorted(set().union(*(indices for indices in role_indices.values())))
             for technique, role_indices in sorted(by_technique.items())
             if len(role_indices) >= required_votes
         }
@@ -224,8 +216,7 @@ def _vote_payload(role: str, vote: TeacherLabelResponse) -> dict[str, object]:
         "malicious": vote.malicious,
         "first_evidence_index": vote.first_evidence_index,
         "technique_evidence": {
-            technique: list(indices)
-            for technique, indices in vote.technique_evidence.items()
+            technique: list(indices) for technique, indices in vote.technique_evidence.items()
         },
         "tactics": list(vote.tactics),
         "confidence": vote.confidence,

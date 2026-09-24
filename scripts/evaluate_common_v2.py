@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
@@ -125,9 +124,7 @@ def selected_indices(record: Mapping[str, Any], mode: str) -> tuple[int, ...]:
     return select_prefix_indices(
         len(commands),
         max_prefixes=32,
-        first_evidence_index=(
-            None if first_evidence is None else int(first_evidence)
-        ),
+        first_evidence_index=(None if first_evidence is None else int(first_evidence)),
         evidence_indices=_evidence_indices(label),
     )
 
@@ -136,11 +133,7 @@ def _prediction_ids(score: Mapping[str, Any], field: str) -> set[str]:
     values = score.get(field, ())
     if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
         return set()
-    return {
-        str(item.get("id"))
-        for item in values
-        if isinstance(item, Mapping) and item.get("id")
-    }
+    return {str(item.get("id")) for item in values if isinstance(item, Mapping) and item.get("id")}
 
 
 def _session_metrics(
@@ -213,7 +206,16 @@ def _taxonomy_metrics(
         # sentinel so this remains correct even if a calibration threshold is 0.
         tactic_scores.append(
             [
-                float(next((item["score"] for item in score.get("tactics", ()) if item.get("id") == label_id), -1.0))
+                float(
+                    next(
+                        (
+                            item["score"]
+                            for item in score.get("tactics", ())
+                            if item.get("id") == label_id
+                        ),
+                        -1.0,
+                    )
+                )
                 if label_id in predicted_tactics
                 else -1.0
                 for label_id in vocabulary.tactics
@@ -221,7 +223,16 @@ def _taxonomy_metrics(
         )
         technique_scores.append(
             [
-                float(next((item["score"] for item in score.get("techniques", ()) if item.get("id") == label_id), -1.0))
+                float(
+                    next(
+                        (
+                            item["score"]
+                            for item in score.get("techniques", ())
+                            if item.get("id") == label_id
+                        ),
+                        -1.0,
+                    )
+                )
                 if label_id in predicted_techniques
                 else -1.0
                 for label_id in vocabulary.techniques
@@ -234,8 +245,7 @@ def _taxonomy_metrics(
         float(tactic_thresholds.get(label_id, 0.5)) for label_id in vocabulary.tactics
     ]
     technique_threshold_values = [
-        float(technique_thresholds.get(label_id, 0.5))
-        for label_id in vocabulary.techniques
+        float(technique_thresholds.get(label_id, 0.5)) for label_id in vocabulary.techniques
     ]
     return {
         "tactics": multilabel_metrics(
@@ -261,8 +271,7 @@ def evaluate_view(
 ) -> dict[str, Any]:
     threshold = float(calibration["malicious_threshold"])
     selected: dict[str, tuple[int, ...]] = {
-        session_id: selected_indices(record, prefix_mode)
-        for session_id, record in records.items()
+        session_id: selected_indices(record, prefix_mode) for session_id, record in records.items()
     }
     row_keys = [
         (session_id, command_index)
@@ -283,10 +292,7 @@ def evaluate_view(
             if int(_mapping(records[session_id].get("label", {})).get("malicious", 0))
             and command_index
             >= int(
-                _mapping(records[session_id].get("label", {})).get(
-                    "first_evidence_index", 0
-                )
-                or 0
+                _mapping(records[session_id].get("label", {})).get("first_evidence_index", 0) or 0
             )
             else 0.0
             for session_id, command_index, _ in rows
@@ -300,9 +306,7 @@ def evaluate_view(
     session_ids = [session_id for session_id, _, _ in rows]
     prefix_indices = [command_index for _, command_index, _ in rows]
 
-    binary = binary_classification_metrics(
-        targets, probabilities, threshold=threshold
-    )
+    binary = binary_classification_metrics(targets, probabilities, threshold=threshold)
     session = _session_metrics(records, rows, threshold=threshold)
     delay = detection_delay_metrics(
         targets,

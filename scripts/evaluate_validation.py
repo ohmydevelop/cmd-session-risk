@@ -105,9 +105,7 @@ def load_scores(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def prefix_labels(
-    labels: dict[str, dict[str, Any]], session_id: str, prefix_index: int
-) -> float:
+def prefix_labels(labels: dict[str, dict[str, Any]], session_id: str, prefix_index: int) -> float:
     """Return the prefix-level target for one observation."""
 
     entry = labels[session_id]
@@ -133,19 +131,14 @@ def evaluate(
     missing = sorted(set(labels) - scored_sessions)
 
     targets = np.asarray(
-        [
-            prefix_labels(labels, row["session_id"], row["prefix_index"])
-            for row in rows
-        ],
+        [prefix_labels(labels, row["session_id"], row["prefix_index"]) for row in rows],
         dtype=np.float64,
     )
     probabilities = np.asarray([row["probability"] for row in rows], dtype=np.float64)
     session_ids = [row["session_id"] for row in rows]
     prefix_indices = [row["prefix_index"] for row in rows]
 
-    malicious = binary_classification_metrics(
-        targets, probabilities, threshold=threshold
-    )
+    malicious = binary_classification_metrics(targets, probabilities, threshold=threshold)
     detection_delay = detection_delay_metrics(
         targets,
         probabilities,
@@ -154,9 +147,7 @@ def evaluate(
         threshold=threshold,
     )
 
-    observed_max = (
-        max((row["prefix_index"] for row in rows), default=-1) + 1
-    )
+    observed_max = max((row["prefix_index"] for row in rows), default=-1) + 1
     per_session = Counter(row["session_id"] for row in rows)
     prefix_mismatch = {
         session_id: {"expected": entry["command_count"], "scored": per_session[session_id]}

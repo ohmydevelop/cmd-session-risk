@@ -119,8 +119,7 @@ def test_score_compact_jsonl(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(cli, "_load_scorer", lambda *_args, **_kwargs: _scorer())
     source = tmp_path / "sessions.jsonl"
     source.write_text(
-        '{"session_id":"s1","commands":[{"cmd":"whoami","dt":0},'
-        '{"cmd":"curl x","dt":1}]}\n',
+        '{"session_id":"s1","commands":[{"cmd":"whoami","dt":0},{"cmd":"curl x","dt":1}]}\n',
         encoding="utf-8",
     )
     result = runner.invoke(
@@ -216,6 +215,7 @@ def test_stream_inference_failure_uses_exit_code_four(monkeypatch, tmp_path: Pat
     assert result.exit_code == 4
     assert '"code":"inference_error"' in result.output
 
+
 def test_score_batch_size_matches_streaming(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(cli, "_load_scorer", lambda *_args, **_kwargs: _batch_scorer())
     text = (
@@ -253,6 +253,7 @@ def test_score_batch_size_matches_streaming(monkeypatch, tmp_path: Path) -> None
     assert [item["command_index"] for item in lines] == [0, 1, 2, 0]
     assert [item["session_id"] for item in lines] == ["s1", "s1", "s1", "s2"]
 
+
 def test_score_batch_honours_token_budget(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, BatchOnnxSession] = {}
 
@@ -286,16 +287,13 @@ def test_score_batch_honours_token_budget(monkeypatch, tmp_path: Path) -> None:
     assert all(size <= 8 for size in captured["session"].batch_sizes)
 
 
-
 def test_score_batch_splits_on_runtime_failure(monkeypatch, tmp_path: Path) -> None:
     """A batch the runtime cannot fit must be retried in smaller pieces."""
 
     attempts: list[int] = []
 
     class OomOnWideBatch(BatchOnnxSession):
-        def run(
-            self, output_names: object, input_feed: dict[str, np.ndarray]
-        ) -> list[np.ndarray]:
+        def run(self, output_names: object, input_feed: dict[str, np.ndarray]) -> list[np.ndarray]:
             rows = int(input_feed["input_ids"].shape[0])
             attempts.append(rows)
             if rows > 2:
@@ -332,9 +330,7 @@ def test_score_batch_splits_on_runtime_failure(monkeypatch, tmp_path: Path) -> N
 
 def test_score_batch_failure_on_single_row_still_fails(monkeypatch, tmp_path: Path) -> None:
     class AlwaysFailing(BatchOnnxSession):
-        def run(
-            self, output_names: object, input_feed: dict[str, np.ndarray]
-        ) -> list[np.ndarray]:
+        def run(self, output_names: object, input_feed: dict[str, np.ndarray]) -> list[np.ndarray]:
             del output_names, input_feed
             raise RuntimeError("Failed to allocate memory for requested buffer")
 
