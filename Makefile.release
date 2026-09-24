@@ -5,7 +5,7 @@ LDFLAGS ?= -lm
 .PHONY: all objects binary smoke clean_dir
 
 all: build/cmdrisk
-objects: build/model_f32.o build/vocab.o
+objects: build/model_f32.o build/vocab.o build/calibration.o build/model_config.o
 
 build/model_f32.o: ci_assets/model_f32.bin
 	mkdir -p build
@@ -15,9 +15,17 @@ build/vocab.o: ci_assets/vocab.txt
 	mkdir -p build
 	ld -r -b binary ci_assets/vocab.txt -o build/vocab.o
 
-build/cmdrisk: tools/cmdrisk_single.c build/model_f32.o build/vocab.o
+build/calibration.o: ci_assets/calibration.json
 	mkdir -p build
-	$(CC) $(CFLAGS) tools/cmdrisk_single.c build/model_f32.o build/vocab.o $(LDFLAGS) -o build/cmdrisk
+	ld -r -b binary ci_assets/calibration.json -o build/calibration.o
+
+build/model_config.o: ci_assets/model_config.json
+	mkdir -p build
+	ld -r -b binary ci_assets/model_config.json -o build/model_config.o
+
+build/cmdrisk: tools/cmdrisk_single.c build/model_f32.o build/vocab.o build/calibration.o build/model_config.o
+	mkdir -p build
+	$(CC) $(CFLAGS) tools/cmdrisk_single.c build/model_f32.o build/vocab.o build/calibration.o build/model_config.o $(LDFLAGS) -o build/cmdrisk
 
 smoke: build/cmdrisk
 	./build/cmdrisk ci_assets/smoke_text.txt 0.00011 > build/smoke.out 2> build/smoke.err

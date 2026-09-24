@@ -282,6 +282,36 @@ extern const unsigned char _binary_ci_assets_model_f32_bin_end[];
 extern const unsigned char _binary_ci_assets_vocab_txt_start[];
 extern const unsigned char _binary_ci_assets_vocab_txt_end[];
 
+extern const unsigned char _binary_ci_assets_calibration_json_start[];
+extern const unsigned char _binary_ci_assets_calibration_json_end[];
+extern const unsigned char _binary_ci_assets_model_config_json_start[];
+extern const unsigned char _binary_ci_assets_model_config_json_end[];
+
+/* micro JSON number reader: find "key" then the next number.  Returns
+   1 on success.  Deliberately tiny: our embedded files are simple json. */
+static int json_num(const unsigned char *s, const unsigned char *e,
+                    const char *key, double *out){
+    size_t klen = strlen(key);
+    for (const unsigned char *p = s; p + klen < e; p++){
+        if (*p != '"') continue;
+        if (memcmp(p+1, key, klen) != 0 || p[1+klen] != '"') continue;
+        const unsigned char *q = p + klen + 2;
+        while (q < e && *q != ':') q++;
+        q++;
+        while (q < e && (*q==' '||*q=='\t'||*q=='\n')) q++;
+        char num[64]; size_t n=0;
+        while (q < e && n+1 < sizeof(num) &&
+               (isdigit((unsigned char)*q) || *q=='-' || *q=='.' || *q=='e' || *q=='E' || *q=='+')){
+            num[n++] = (char)*q; q++;
+        }
+        if (!n) return 0;
+        num[n] = 0;
+        *out = strtod(num, NULL);
+        return 1;
+    }
+    return 0;
+}
+
 static int load_vocab_mem(const unsigned char *data, size_t len) {
     (void)len;
     FILE *f = fmemopen((void*)data, len, "rb");
@@ -332,8 +362,39 @@ static int load_model_mem(const unsigned char *data, size_t len, struct Model *m
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s input_text.txt [threshold]\n", argv[0]); return 1; }
     const char* input_path = argv[1];
-    float TH = 0.00011f;
-    if (argc > 2) TH = (float)atof(argv[2]);
+    float TH = 0.00011f; /* fallback only; normally overridden by the embedded calibration */
+    double cal_th = 0.0, cal_temp = 0.0;
+    if (json_num(_binary_ci_assets_calibration_json_start, _binary_ci_assets_calibration_json_end,
+                 "malicious_threshold", &cal_th) && cal_th > 0.0)
+        TH = (float)cal_th;
+    if (argc > 2) TH = (float)atof(argv[2]);   /* explicit CLI arg always wins */
+    double MALT = 0.0;
+    if (json_num(_binary_ci_assets_calibration_json_start, _binary_ci_assets_calibration_json_end,
+                 "malicious_temperature", &MALT) && MALT > 0.0) {
+        /* runtime temperature from the embedded calibration */
+    } else {
+        MALT = (double)MAL_TEMP;               /* compiled fallback */
+    }
+
+    /* compile-time structure constants must match the embedded model config,
+       otherwise the weight blob layout is wrong; fail loudly instead of
+       silently mis-reading the tensor table. */
+    {
+        static const struct { const char *key; double want; } expect[] = {
+            {"vocab_size", 30534}, {"hidden_size", 256}, {"num_layers", 8},
+            {"num_heads", 4}, {"intermediate_size", 1024}, {"max_seq", 256},
+        };
+        for (size_t i = 0; i < sizeof(expect)/sizeof(expect[0]); i++){
+            double got = -1.0;
+            if (!json_num(_binary_ci_assets_model_config_json_start, _binary_ci_assets_model_config_json_end,
+                          expect[i].key, &got) || got != expect[i].want){
+                fprintf(stderr, "embedded model_config mismatch: %s=%g (code expects %g)\n",
+                        expect[i].key, got, expect[i].want);
+                return 1;
+            }
+        }
+    }
+    fprintf(stderr, "operating-point: threshold=%.9g temperature=%.9g\n", TH, MALT);
 
     load_vocab_mem(_binary_ci_assets_vocab_txt_start, _binary_ci_assets_vocab_txt_end - _binary_ci_assets_vocab_txt_start);
     struct Model M;
@@ -424,7 +485,7 @@ int main(int argc, char **argv) {
         const float *cls_vec = hidden;
         float mal_logit = M.mal_b[0];
         for (int kdx = 0; kdx < H; ++kdx) mal_logit += cls_vec[kdx] * M.mal_w[kdx];
-        float prob = 1.0f / (1.0f + expf(-(mal_logit / MAL_TEMP)));
+        float prob = 1.0f / (1.0f + expf(-(mal_logit / (float)MALT)));
         int rule_hit = prefix_intent_alert(lb);
         int decis = (prob >= TH) || rule_hit;
         printf("%d\t%.9g\t%.9g\t%d\t%d\n", line, mal_logit, prob, decis, rule_hit);

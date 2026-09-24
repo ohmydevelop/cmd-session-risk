@@ -16,19 +16,19 @@ for the fallback GPU entry points, and `src/cmdrisk/` for the package.
 
 ## Install（单一二进制）——生产使用
 
-v1.4.0 的 `cmdrisk` 是**单一可执行文件**（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
+v1.4.1 的 `cmdrisk` 是**单一可执行文件**：TH/T 与模型架构常量不再写死在代码里，运行时从内嵌 `calibration.json` / `model_config.json` 读取（架构不匹配立即报错退出）；仅保留协议常量与意图层语义谓词（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
 
 ```bash
 # 1) 从 GitHub Release 下载到 ~/.local/bin
 mkdir -p ~/.local/bin
-gh release download v1.4.0 \
+gh release download v1.4.1 \
   --repo ohmydevelop/cmd-session-risk \
   --pattern cmdrisk \
   --output ~/.local/bin/cmdrisk
 chmod +x ~/.local/bin/cmdrisk
 export PATH="$HOME/.local/bin:$PATH"
 
-# 2) 校验完整性（expected e821991678fb14285765e71c83236c0d0f1e5e6d8ed0df85672941e30cf76877）
+# 2) 校验完整性（expected e9f8cc18d376d7084184bfcdd3a4d8c5f06374901a3ef2edd40952a0f16be863）
 sha256sum ~/.local/bin/cmdrisk
 
 # 3) 运行：每行一个命令前缀；命令之间用 0x1f 分隔；每条命令为 <cmd><TAB><dt>
