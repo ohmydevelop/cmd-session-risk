@@ -385,10 +385,10 @@ struct Workspace {
 
 static struct Model g_model;
 static struct Workspace *g_ws;
-static double g_th = 0.00011;                 /* fallback; overridden by calibration */
+static double g_th = 0.00021;                 /* fallback; overridden by calibration */
 static double g_malt = (double)MAL_TEMP;      /* fallback; overridden by calibration */
 
-#define SERVER_VERSION "v1.5.0"
+#define SERVER_VERSION "v1.5.1"
 #define MODEL_VERSION "v6"
 
 int cmdrisk_calibration_setup(void) {

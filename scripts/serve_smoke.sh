@@ -53,7 +53,7 @@ with open(sys.argv[1]) as f:
     h = json.load(f)
 assert h["ok"] is True, h
 assert h["model"] == "v6", h
-assert h["version"] == "v1.5.0", h
+assert h["version"] == "v1.5.1", h
 assert h["bind"].startswith("127.0.0.1:"), h
 print("healthz ok")
 PY

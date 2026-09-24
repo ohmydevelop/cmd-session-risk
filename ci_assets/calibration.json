@@ -1,6 +1,6 @@
 {
   "malicious_temperature": 0.9085309978652624,
-  "malicious_threshold": 0.00011,
+  "malicious_threshold": 0.00021,
   "tactic_temperature": 1.0597542121594035,
   "tactic_thresholds": {
     "TA0001": 0.0008762321317033777,
@@ -35,5 +35,5 @@
     "T1222": 0.0021790296637856682
   },
   "version": 1,
-  "threshold_selection": "v6 gates operating point (critical>=0.995, obf>=0.95, benign-twins<=0.02 incl. intent layer)"
+  "threshold_selection": "v1.5.1 recalibration: TH=2.1e-4 keeps v6 gates (critical 400/400>=0.995, obf 1597/1600=0.99813>=0.95, benign-twin 15/800=0.01875<=0.02 incl. intent layer) on the frozen positive/negative test sets; TH=1.1e-4 was found to yield reproducible benign-twin FPR 7.5% (60/800), see reports/V1.5.1_RECALIBRATION_zh.md"
 }

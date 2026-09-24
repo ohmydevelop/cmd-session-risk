@@ -14,21 +14,35 @@ for the fallback GPU entry points, and `src/cmdrisk/` for the package.
 - 模型：v5 L8-H256 续训 1 epoch，+3600 混淆增强会话；灾难单命令门禁：critical 1.0 / obf 0.9863 / benign-twin FPR 2.0%（含意图层）
 - 操作点：TH=1.1e-4，T=0.9085（详见 `reports/V1.4.0_RELEASE_zh.md`）
 
+## v1.5.1（2026-09-24，阈值重校准 + 正/反测试集门禁）
+
+- 操作点：**TH=2.1e-4、T=0.9085 不变**、权重不变、意图层不变。旧 TH=1.1e-4 在当前
+  冷冻测试集上复测 benign-twin FPR=7.5%（60/800），与历史报告不符，如实重校准；
+  `make -f Makefile.release smoke` / `serve-smoke` 与新门禁脚本全过。
+- 正/反测试集（`data/processed/v6_obf_evals/`，`split:test`，与训练不重叠）：
+  - 正（灾难单命令 400 条）：召回 **400/400 = 1.0000**（门禁 >=0.995）
+  - 正（混淆变体 1600 条）：召回 **1597/1600 = 0.99813**（门禁 >=0.95）
+  - 反（良性孪生 800 条）：误报 **15/800 = 0.01875**（门禁 <=0.02）
+  - 一键复测：`scripts/evaluate_serve_gates.py --base-url http://127.0.0.1:8080`
+  - 全过程与数字、披露：`reports/V1.5.1_RECALIBRATION_zh.md`
+- 新增 `serve` HTTP daemon（v1.5.0 交付），见下方专节；旧版 v1.4.0/v1.4.2 及历史
+  release 全部保留。
+
 ## Install（单一二进制）——生产使用
 
-v1.4.2 的 `cmdrisk` 是**单一可执行文件**：TH/T 与模型架构常量运行时从内嵌 `calibration.json` / `model_config.json` 读取；输出新增**意图类别 + MITRE 标签**（tail：意图层类别名 / tactic argmax / technique argmax）（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
+v1.5.1 的 `cmdrisk` 是**单一可执行文件**：TH/T 与模型架构常量运行时从内嵌 `calibration.json` / `model_config.json` 读取；输出新增**意图类别 + MITRE 标签**（tail：意图层类别名 / tactic argmax / technique argmax）（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
 
 ```bash
 # 1) 从 GitHub Release 下载到 ~/.local/bin
 mkdir -p ~/.local/bin
-gh release download v1.4.2 \
+gh release download v1.5.1 \
   --repo ohmydevelop/cmd-session-risk \
   --pattern cmdrisk \
   --output ~/.local/bin/cmdrisk
 chmod +x ~/.local/bin/cmdrisk
 export PATH="$HOME/.local/bin:$PATH"
 
-# 2) 校验完整性（expected e8a54eee56c84e31c39f81a82701165119c667493dc6322eb495269942937cda）
+# 2) 校验完整性（expected aa4dd873a89fbcfa7e51a72561b3c9f0b5b14a0b9910a811b9a1b81dc2f94c26）
 sha256sum ~/.local/bin/cmdrisk
 
 # 3) 运行：每行一个命令前缀；命令之间用 0x1f 分隔；每条命令为 <cmd><TAB><dt>
@@ -87,7 +101,7 @@ cmdrisk serve --bind 127.0.0.1:8080
 
 # 健康检查
 curl -sS http://127.0.0.1:8080/healthz
-# {"ok":true,"model":"v6","version":"v1.5.0","bind":"127.0.0.1:8080"}
+# {"ok":true,"model":"v6","version":"v1.5.1","bind":"127.0.0.1:8080"}
 
 # 打分一次完整命令会话（逐前缀返回恶意概率 + 意图类 + MITRE 标签）
 curl -sS -X POST http://127.0.0.1:8080/v1/score \
