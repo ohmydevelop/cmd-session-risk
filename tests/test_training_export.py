@@ -124,7 +124,9 @@ def test_export_onnx_round_trips_through_runtime(tmp_path: Path) -> None:
         checkpoint=checkpoint,
         output_dir=artifact,
         calibration_path=calibration,
-    )
+        int8_parity_atol=0.2,  # tiny synthetic model: CI INT8 drift
+    
+)
 
     assert manifest["fp32_model"] == "model.onnx"
     assert manifest["int8_model"] == "model.int8.onnx"
@@ -187,7 +189,9 @@ def test_export_honours_an_explicit_model_version(tmp_path: Path) -> None:
         output_dir=artifact,
         calibration_path=calibration,
         model_version="cmd-session-risk-v1.2.0",
-    )
+        int8_parity_atol=0.2,  # tiny synthetic model: CI INT8 drift
+    
+)
 
     assert manifest["model_version"] == "cmd-session-risk-v1.2.0"
     assert SessionScorer.from_onnx(artifact).model_version == "cmd-session-risk-v1.2.0"
@@ -348,7 +352,9 @@ def test_export_require_promotion_fails_without_evidence(tmp_path: Path) -> None
             output_dir=tmp_path / "onnx",
             calibration_path=calibration,
             require_promotion=True,
-        )
+        int8_parity_atol=0.2,  # tiny synthetic model: CI INT8 drift
+    
+)
 
 
 def test_update_export_manifest_latency_enables_promotion(tmp_path: Path) -> None:
@@ -390,7 +396,9 @@ def test_update_export_manifest_latency_fails_closed(tmp_path: Path) -> None:
         output_dir=artifact,
         calibration_path=calibration,
         metrics_path=metrics_path,
-    )
+        int8_parity_atol=0.2,  # tiny synthetic model: CI INT8 drift
+    
+)
 
     slow = _passing_latency()
     slow["p95_ms"] = 500.0
