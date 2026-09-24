@@ -20,14 +20,14 @@ build/cmdrisk: tools/cmdrisk_single.c build/model_f32.o build/vocab.o
 	$(CC) $(CFLAGS) tools/cmdrisk_single.c build/model_f32.o build/vocab.o $(LDFLAGS) -o build/cmdrisk
 
 smoke: build/cmdrisk
-	./build/cmdrisk ci_assets/smoke_text.txt 0.0001179935351014905 > build/smoke.out 2> build/smoke.err
+	./build/cmdrisk ci_assets/smoke_text.txt 0.00011 > build/smoke.out 2> build/smoke.err
 	test "$$(wc -l < build/smoke.out)" -eq 8
 	awk '$$4!=1{exit 1}' build/smoke.out
-	./build/cmdrisk ci_assets/regression_borderline.txt 0.0001179935351014905 > build/reg.out 2> build/reg.err
+	./build/cmdrisk ci_assets/regression_borderline.txt 0.00011 > build/reg.out 2> build/reg.err
 	test "$$(wc -l < build/reg.out)" -eq 21
 	awk '$$4!=0{exit 1}' build/reg.out
 	awk '$$5!=0{exit 1}' build/reg.out
-	./build/cmdrisk ci_assets/regression_critical.txt 0.0001179935351014905 > build/crit.out 2> build/crit.err
+	./build/cmdrisk ci_assets/regression_critical.txt 0.00011 > build/crit.out 2> build/crit.err
 	test "$$(wc -l < build/crit.out)" -eq 28
 	awk '$$4!=1{exit 1}' build/crit.out
 	awk '$$5!=1{exit 1}' build/crit.out

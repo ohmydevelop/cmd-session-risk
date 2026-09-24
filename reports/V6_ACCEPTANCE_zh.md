@@ -33,9 +33,9 @@ sha256sum ~/.local/bin/cmdrisk   # 期望与 release 报告一致
 printf 'rm -rf /\n'                      > /tmp/a.txt   # 期望 decision=1
 printf 'sh -c "rm -rf /tmp/../etc"\n'   > /tmp/b.txt   # 期望 decision=1
 printf 'rm -rf /tmp/a\n'                > /tmp/c.txt   # 期望 decision=0
-cmdrisk /tmp/a.txt 0.00005
-cmdrisk /tmp/b.txt 0.00005
-cmdrisk /tmp/c.txt 0.00005
+cmdrisk /tmp/a.txt 0.00011
+cmdrisk /tmp/b.txt 0.00011
+cmdrisk /tmp/c.txt 0.00011
 ```
 
 ## 四、交付物（按优先级，所有旧版本保留）
@@ -54,7 +54,8 @@ cmdrisk /tmp/c.txt 0.00005
 | 操作点 | critical recall (>=0.995) | obfuscation recall (>=0.95) | benign twin FPR (<=0.02) |
 |---|---:|---:|---:|
 | v5 标定 TH=1.18e-4 | 1.0000 (400/400, 含意图层) | 0.9469 (1515/1600) 差 5 条 | 0.0000 |
-| **TH=5e-5（回退操作点）** | **1.0000** | **0.9725 (1556/1600)** | **0.0112 (9/800)** |
+| v5 标定旧 T=0.797 试算（仅作参考） | 1.0000 | 0.9750 | 0.0112 |
+| **正式 TH=1.1e-4 / T=0.9085（发布位）** | **1.0000** | **0.9863 (1578/1600)** | **0.0200 (16/800)** |
 
 - 灾难/混淆正样本 logit：中位数由 v5 的 ≈-8 提升到 **+4.9**（表内可查）；
   良性双生 logit 中位数 **≈-9.0**；正负距离约 14 个 logit 单位。

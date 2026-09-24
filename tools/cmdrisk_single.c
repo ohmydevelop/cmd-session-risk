@@ -332,7 +332,7 @@ static int load_model_mem(const unsigned char *data, size_t len, struct Model *m
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: %s input_text.txt [threshold]\n", argv[0]); return 1; }
     const char* input_path = argv[1];
-    float TH = 0.0001179935351014905f;
+    float TH = 0.00011f;
     if (argc > 2) TH = (float)atof(argv[2]);
 
     load_vocab_mem(_binary_ci_assets_vocab_txt_start, _binary_ci_assets_vocab_txt_end - _binary_ci_assets_vocab_txt_start);

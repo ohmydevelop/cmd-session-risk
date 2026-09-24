@@ -9,25 +9,30 @@ exports a CPU INT8 ONNX artifact. It does not block commands.
 See `configs/` for prompts, `scripts/` for data/teacher preparation, `kaggle/`
 for the fallback GPU entry points, and `src/cmdrisk/` for the package.
 
+## v1.4.0（v6 模型，2026-09-23 夜间训练）
+
+- 模型：v5 L8-H256 续训 1 epoch，+3600 混淆增强会话；灾难单命令门禁：critical 1.0 / obf 0.9863 / benign-twin FPR 2.0%（含意图层）
+- 操作点：TH=1.1e-4，T=0.9085（详见 `reports/V1.4.0_RELEASE_zh.md`）
+
 ## Install（单一二进制）——生产使用
 
-v1.3.0 的 `cmdrisk` 是**单一可执行文件**（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
+v1.4.0 的 `cmdrisk` 是**单一可执行文件**（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
 
 ```bash
 # 1) 从 GitHub Release 下载到 ~/.local/bin
 mkdir -p ~/.local/bin
-gh release download v1.3.0 \
+gh release download v1.4.0 \
   --repo ohmydevelop/cmd-session-risk \
   --pattern cmdrisk \
   --output ~/.local/bin/cmdrisk
 chmod +x ~/.local/bin/cmdrisk
 export PATH="$HOME/.local/bin:$PATH"
 
-# 2) 校验完整性（expected 86303342a86c292ceb3111db96051211e6a979a613006a85c99561c848c50b9d）
+# 2) 校验完整性（expected e821991678fb14285765e71c83236c0d0f1e5e6d8ed0df85672941e30cf76877）
 sha256sum ~/.local/bin/cmdrisk
 
 # 3) 运行：每行一个命令前缀；命令之间用 0x1f 分隔；每条命令为 <cmd><TAB><dt>
-cmdrisk ci_assets/smoke_text.txt 0.0001179935351014905
+cmdrisk ci_assets/smoke_text.txt 0.00011
 ```
 
 测试样例输出格式：

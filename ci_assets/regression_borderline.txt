@@ -10,8 +10,8 @@ mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade
 mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	sudo apt-get update	
 mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	sudo apt-get update	sudo apt-get install git-core	
 mpg321 try.mp3	sudo apt-get install git-core	gpio]	gpio	sudo apt-get upgrade	gpio	gpi0	gpio	sudo apt-get install git-core	sudo apt-get update	sudo apt-get install git-core	gpio	
-rm -rf /tmp/a
-rm -rf /tmp/a
+rm -rf /tmp/a-0759
+rm -rf /tmp/build-cache-8681
 dd if=/dev/sda of=/tmp/backup.img
 rm -rf /tmp/build-cache
 shred -u /home/u/notes.txt
