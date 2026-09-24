@@ -1,5 +1,11 @@
-/* cmd-session-risk C BERT inference prototype (token-id input).
- * build: cc -O3 -march=native tools/bert_infer_c.c -lm -o tools/bert_infer_c
+/* cmd-session-risk C BERT inference single binary.
+ *
+ * Two entry modes share one inference path so numbers never drift:
+ *   batch: cmdrisk input_text.txt [threshold]
+ *   serve: cmdrisk serve [--bind 127.0.0.1:8080] [--max-body BYTES] [--timeout SEC]
+ *
+ * build: see Makefile.release (weights/vocab/calibration/config embedded at
+ * link time via `ld -r -b binary`).
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -8,6 +14,7 @@
 #include <math.h>
 #include "cmdrisk_calibration.h"
 #include "cmdrisk_intent.h"
+#include "cmdrisk_infer.h"
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
@@ -164,6 +171,8 @@ static int vocab_count = 0;
 #define SID_DT_UNK  30533
 
 static const char *TACT_LABELS[14] = {"TA0043","TA0042","TA0001","TA0002","TA0003","TA0004","TA0005","TA0006","TA0007","TA0008","TA0009","TA0011","TA0010","TA0040"};
+static const char *TACT_NAMES[14] = {"Reconnaissance","Resource Development","Initial Access","Execution","Persistence","Privilege Escalation","Defense Evasion","Credential Access","Discovery","Lateral Movement","Collection","Command and Control","Exfiltration","Impact"};
+static const double TACT_SEVERITY[14] = {0.60,0.60,0.80,0.80,0.90,0.90,0.90,1.00,0.60,1.00,0.90,1.00,1.00,1.00};
 static const char *TECH_LABELS[12] = {"T1005","T1036","T1053","T1057","T1059","T1070","T1082","T1083","T1087","T1098","T1105","T1222"};
 
 static int load_vocab(const char*path) {
@@ -362,157 +371,252 @@ static int load_model_mem(const unsigned char *data, size_t len, struct Model *m
     return 0;
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: %s input_text.txt [threshold]\n", argv[0]); return 1; }
-    const char* input_path = argv[1];
-    float TH = 0.00011f; /* fallback only; normally overridden by the embedded calibration */
+/* ------------------------------------------------------------------ */
+/* Shared runtime state between the batch CLI and the HTTP daemon.     */
+/* ------------------------------------------------------------------ */
+
+struct Workspace {
+    int S, H, L, NH, HD, MID;
+    int64_t *tokens;
+    float *hidden;   /* S*H*2: hidden followed by buf2 */
+    float *buf2;
+    float *tmp, *q, *k, *v, *scores, *ctx, *inter;
+};
+
+static struct Model g_model;
+static struct Workspace *g_ws;
+static double g_th = 0.00011;                 /* fallback; overridden by calibration */
+static double g_malt = (double)MAL_TEMP;      /* fallback; overridden by calibration */
+
+#define SERVER_VERSION "v1.5.0"
+#define MODEL_VERSION "v6"
+
+int cmdrisk_calibration_setup(void) {
     double cal_th = 0.0, cal_temp = 0.0;
     if (json_num(_binary_ci_assets_calibration_json_start, _binary_ci_assets_calibration_json_end,
                  "malicious_threshold", &cal_th) && cal_th > 0.0)
-        TH = (float)cal_th;
-    if (argc > 2) TH = (float)atof(argv[2]);   /* explicit CLI arg always wins */
-    double MALT = 0.0;
+        g_th = cal_th;
     if (json_num(_binary_ci_assets_calibration_json_start, _binary_ci_assets_calibration_json_end,
-                 "malicious_temperature", &MALT) && MALT > 0.0) {
-        /* runtime temperature from the embedded calibration */
-    } else {
-        MALT = (double)MAL_TEMP;               /* compiled fallback */
-    }
+                 "malicious_temperature", &cal_temp) && cal_temp > 0.0)
+        g_malt = cal_temp;
+    /* else keep the compiled MAL_TEMP fallback */
 
     /* compile-time structure constants must match the embedded model config,
        otherwise the weight blob layout is wrong; fail loudly instead of
        silently mis-reading the tensor table. */
-    {
-        static const struct { const char *key; double want; } expect[] = {
-            {"vocab_size", 30534}, {"hidden_size", 256}, {"num_layers", 8},
-            {"num_heads", 4}, {"intermediate_size", 1024}, {"max_seq", 256},
-        };
-        for (size_t i = 0; i < sizeof(expect)/sizeof(expect[0]); i++){
-            double got = -1.0;
-            if (!json_num(_binary_ci_assets_model_config_json_start, _binary_ci_assets_model_config_json_end,
-                          expect[i].key, &got) || got != expect[i].want){
-                fprintf(stderr, "embedded model_config mismatch: %s=%g (code expects %g)\n",
-                        expect[i].key, got, expect[i].want);
-                return 1;
-            }
+    static const struct { const char *key; double want; } expect[] = {
+        {"vocab_size", 30534}, {"hidden_size", 256}, {"num_layers", 8},
+        {"num_heads", 4}, {"intermediate_size", 1024}, {"max_seq", 256},
+    };
+    for (size_t i = 0; i < sizeof(expect)/sizeof(expect[0]); i++){
+        double got = -1.0;
+        if (!json_num(_binary_ci_assets_model_config_json_start, _binary_ci_assets_model_config_json_end,
+                      expect[i].key, &got) || got != expect[i].want){
+            fprintf(stderr, "embedded model_config mismatch: %s=%g (code expects %g)\n",
+                    expect[i].key, got, expect[i].want);
+            return 1;
         }
     }
-    fprintf(stderr, "operating-point: threshold=%.9g temperature=%.9g\n", TH, MALT);
+    return 0;
+}
 
-    load_vocab_mem(_binary_ci_assets_vocab_txt_start, _binary_ci_assets_vocab_txt_end - _binary_ci_assets_vocab_txt_start);
-    struct Model M;
-    if (load_model_mem(_binary_ci_assets_model_f32_bin_start, _binary_ci_assets_model_f32_bin_end - _binary_ci_assets_model_f32_bin_start, &M) != 0) return 1;
-    struct Cfg *c = &M.cfg;
+int cmdrisk_model_setup(void) {
+    if (load_vocab_mem(_binary_ci_assets_vocab_txt_start,
+                       _binary_ci_assets_vocab_txt_end - _binary_ci_assets_vocab_txt_start) != 0)
+        return 1;
+    if (load_model_mem(_binary_ci_assets_model_f32_bin_start,
+                       _binary_ci_assets_model_f32_bin_end - _binary_ci_assets_model_f32_bin_start,
+                       &g_model) != 0)
+        return 1;
+    return 0;
+}
+
+int cmdrisk_workspace_alloc(void) {
+    if (g_ws) return 0;
+    const struct Cfg *c = &g_model.cfg;
+    const int S = c->max_seq, H = c->hidden, NH = c->heads, MID = c->intermediate;
+    const int HD = H / NH;
+    struct Workspace *w = (struct Workspace *)calloc(1, sizeof *w);
+    if (!w) { fprintf(stderr, "alloc failed\n"); return 1; }
+    w->S = S; w->H = H; w->L = c->layers; w->NH = NH; w->HD = HD; w->MID = MID;
+    w->tokens = (int64_t *)malloc(sizeof(int64_t) * S);
+    w->hidden = (float *)malloc(sizeof(float) * S * H * 2);
+    w->buf2 = w->hidden ? w->hidden + (size_t)S * H : NULL;
+    w->tmp = (float *)malloc(sizeof(float) * S * H);
+    w->q = (float *)malloc(sizeof(float) * S * H);
+    w->k = (float *)malloc(sizeof(float) * S * H);
+    w->v = (float *)malloc(sizeof(float) * S * H);
+    w->scores = (float *)malloc(sizeof(float) * NH * S * S);
+    w->ctx = (float *)malloc(sizeof(float) * NH * S * HD);
+    w->inter = (float *)malloc(sizeof(float) * S * MID);
+    if (!w->tokens || !w->hidden || !w->tmp || !w->q || !w->k || !w->v ||
+        !w->scores || !w->ctx || !w->inter) {
+        fprintf(stderr, "alloc failed\n");
+        cmdrisk_workspace_free();
+        free(w);
+        return 1;
+    }
+    g_ws = w;
+    return 0;
+}
+
+void cmdrisk_workspace_free(void) {
+    if (!g_ws) return;
+    free(g_ws->tokens);
+    free(g_ws->hidden);
+    free(g_ws->tmp);
+    free(g_ws->q);
+    free(g_ws->k);
+    free(g_ws->v);
+    free(g_ws->scores);
+    free(g_ws->ctx);
+    free(g_ws->inter);
+    free(g_ws);
+    g_ws = NULL;
+}
+
+int cmdrisk_score_prefix(const char *line_text, CmdScoreOut *out) {
+    const struct Model *M = &g_model;
+    const struct Workspace *w = g_ws;
+    const struct Cfg *c = &M->cfg;
+    const int S = w->S, H = w->H, L = w->L, NH = w->NH, HD = w->HD, MID = w->MID;
+    int64_t *tokens = w->tokens;
+    float *hidden = w->hidden;
+    float *buf2 = w->buf2;
+    float *tmp = w->tmp, *q = w->q, *k = w->k, *v = w->v;
+    float *scores = w->scores, *ctx = w->ctx, *inter = w->inter;
+
+    int nn = encode_prefix(line_text, tokens, S);
+    if (nn < 2) return -1;
+
+    for (int i = 0; i < nn; ++i) {
+        const float *row = M->emb_words + (size_t)tokens[i] * H;
+        memcpy(hidden + (size_t)i * H, row, sizeof(float) * H);
+    }
+    for (int i = 0; i < nn; ++i) {
+        int pidx = i < 512 ? i : 511;
+        const float *prow = M->emb_pos + (size_t)pidx * H;
+        const float *trow = M->emb_ttype;
+        float *outrow = hidden + (size_t)i * H;
+        for (int j = 0; j < H; ++j) outrow[j] = outrow[j] + prow[j] + trow[j];
+    }
+    ln_bias(hidden, M->emb_ln_w, M->emb_ln_b, nn, H, c->eps);
+    for (int l = 0; l < L; ++l) {
+        mm(hidden, M->q_w[l], M->q_b[l], nn, H, H, q);
+        mm(hidden, M->k_w[l], M->k_b[l], nn, H, H, k);
+        mm(hidden, M->v_w[l], M->v_b[l], nn, H, H, v);
+        for (int h = 0; h < NH; ++h) {
+            float *sc = scores + (size_t)h * nn * nn;
+            for (int i = 0; i < nn; ++i) {
+                const float *qi = q + (size_t)i * H + h * HD;
+                float *si = sc + (size_t)i * nn;
+                double mx = -1e30;
+                for (int j = 0; j < nn; ++j) {
+                    const float *kj = k + (size_t)j * H + h * HD;
+                    double d = 0.0;
+                    for (int d0 = 0; d0 < HD; ++d0) d += (double)qi[d0] * (double)kj[d0];
+                    d *= 0.125;
+                    si[j] = (float)d;
+                    if (d > mx) mx = d;
+                }
+                double sm = 0.0;
+                for (int j = 0; j < nn; ++j) { double e = exp((double)si[j] - mx); si[j] = (float)e; sm += e; }
+                float inv = (float)(1.0 / sm);
+                for (int j = 0; j < nn; ++j) si[j] *= inv;
+            }
+            for (int i = 0; i < nn; ++i) {
+                float *ci = ctx + (size_t)h * nn * HD + (size_t)i * HD;
+                for (int d0 = 0; d0 < HD; ++d0) ci[d0] = 0.0f;
+                for (int j = 0; j < nn; ++j) {
+                    double wgt = (double)scores[(size_t)h * nn * nn + (size_t)i * nn + j];
+                    const float *vj = v + (size_t)j * H + h * HD;
+                    for (int d0 = 0; d0 < HD; ++d0) ci[d0] += (float)(wgt * (double)vj[d0]);
+                }
+            }
+            for (int i = 0; i < nn; ++i)
+                memcpy(tmp + (size_t)i * H + h * HD,
+                       ctx + (size_t)h * nn * HD + (size_t)i * HD,
+                       sizeof(float) * HD);
+        }
+        mm(tmp, M->attn_o_w[l], M->attn_o_b[l], nn, H, H, buf2);
+        add_res(buf2, hidden, nn * H);
+        ln_bias(buf2, M->attn_ln_w[l], M->attn_ln_b[l], nn, H, c->eps);
+        mm(buf2, M->ffn1_w[l], M->ffn1_b[l], nn, H, MID, inter);
+        for (int i = 0; i < nn * MID; ++i) inter[i] = gelu_erf(inter[i]);
+        mm(inter, M->ffn2_w[l], M->ffn2_b[l], nn, MID, H, hidden);
+        add_res(hidden, buf2, nn * H);
+        ln_bias(hidden, M->ffn_ln_w[l], M->ffn_ln_b[l], nn, H, c->eps);
+    }
+    const float *cls_vec = hidden;
+    float mal_logit = M->mal_b[0];
+    for (int kdx = 0; kdx < H; ++kdx) mal_logit += cls_vec[kdx] * M->mal_w[kdx];
+    float prob = 1.0f / (1.0f + expf(-(mal_logit / (float)g_malt)));
+    /* argmax interest labels (multi-label heads; thresholds not applied here) */
+    float best_t = -1e30f; int bt = -1;
+    for (int kdx = 0; kdx < c->ntact; kdx++){
+        float s = M->tact_b[kdx];
+        const float *row = M->tact_w + (size_t)kdx * H;
+        for (int d = 0; d < H; ++d) s += cls_vec[d] * row[d];
+        if (s > best_t){ best_t = s; bt = kdx; }
+    }
+    float best_e = -1e30f; int be = -1;
+    for (int kdx = 0; kdx < c->ntech; kdx++){
+        float s = M->tech_b[kdx];
+        const float *row = M->tech_w + (size_t)kdx * H;
+        for (int d = 0; d < H; ++d) s += cls_vec[d] * row[d];
+        if (s > best_e){ best_e = s; be = kdx; }
+    }
+    char cat[256]; cat[0] = 0;
+    int rule_hit = prefix_intent_alert_c(line_text, cat, sizeof cat);
+    out->mal_logit = (double)mal_logit;
+    out->prob = (double)prob;
+    out->rule_hit = rule_hit;
+    out->top_tact = bt;
+    out->top_tech = be;
+    snprintf(out->intent, sizeof out->intent, "%s", cat);
+    return 0;
+}
+
+double cmdrisk_threshold(void) { return g_th; }
+double cmdrisk_temperature(void) { return g_malt; }
+int cmdrisk_num_tactics(void) { return (int)(sizeof TACT_LABELS / sizeof TACT_LABELS[0]); }
+int cmdrisk_num_techniques(void) { return (int)(sizeof TECH_LABELS / sizeof TECH_LABELS[0]); }
+const char *cmdrisk_tact_label(int idx) { return (idx >= 0 && idx < (int)(sizeof TACT_LABELS / sizeof TACT_LABELS[0])) ? TACT_LABELS[idx] : NULL; }
+const char *cmdrisk_tact_name(int idx) { return (idx >= 0 && idx < (int)(sizeof TACT_NAMES / sizeof TACT_NAMES[0])) ? TACT_NAMES[idx] : NULL; }
+double cmdrisk_tact_severity(int idx) { return (idx >= 0 && idx < (int)(sizeof TACT_SEVERITY / sizeof TACT_SEVERITY[0])) ? TACT_SEVERITY[idx] : 0.0; }
+const char *cmdrisk_tech_label(int idx) { return (idx >= 0 && idx < (int)(sizeof TECH_LABELS / sizeof TECH_LABELS[0])) ? TECH_LABELS[idx] : NULL; }
+const char *cmdrisk_server_version(void) { return SERVER_VERSION; }
+const char *cmdrisk_model_version(void) { return MODEL_VERSION; }
+
+/* ------------------------------------------------------------------ */
+/* Batch CLI mode: identical output columns to releases <= v1.4.2.     */
+/* ------------------------------------------------------------------ */
+
+static int run_batch(const char *input_path, double cli_th_override) {
+    if (cmdrisk_calibration_setup() != 0) return 1;
+    if (cli_th_override >= 0.0) g_th = cli_th_override;  /* explicit CLI arg always wins */
+    fprintf(stderr, "operating-point: threshold=%.9g temperature=%.9g\n", g_th, g_malt);
+    if (cmdrisk_model_setup() != 0) return 1;
+
     FILE *in = fopen(input_path, "r");
     if (!in) { perror("input"); return 1; }
-
-    const int S = c->max_seq, H = c->hidden, L = c->layers, NH = c->heads, HD = H / NH, MID = c->intermediate;
-    int64_t *tokens = (int64_t *)malloc(sizeof(int64_t) * S);
-    float *hidden = (float *)malloc(sizeof(float) * S * H * 2);
-    float *buf2 = hidden + (size_t)S * H;
-    float *tmp = (float *)malloc(sizeof(float) * S * H);
-    float *q = (float *)malloc(sizeof(float) * S * H);
-    float *k = (float *)malloc(sizeof(float) * S * H);
-    float *v = (float *)malloc(sizeof(float) * S * H);
-    float *scores = (float *)malloc(sizeof(float) * NH * S * S);
-    float *ctx = (float *)malloc(sizeof(float) * NH * S * HD);
-    float *inter = (float *)malloc(sizeof(float) * S * MID);
-    if (!tokens || !hidden || !tmp || !q || !k || !v || !scores || !ctx || !inter) { fprintf(stderr,"alloc failed\n"); return 1; }
+    if (cmdrisk_workspace_alloc() != 0) { fclose(in); return 1; }
 
     struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
     char *lb = NULL; size_t lc = 0; int line = 0;
     while (getline(&lb, &lc, in) != -1) {
         size_t len = strlen(lb); while (len && (lb[len-1]=='\n' || lb[len-1]=='\r')) lb[--len]=0;
         if (!len) continue;
-        int nn = encode_prefix(lb, tokens, S);
-        if (nn < 2) continue;
+        CmdScoreOut o;
+        if (cmdrisk_score_prefix(lb, &o) != 0) continue;
         ++line;
-        for (int i = 0; i < nn; ++i) {
-            const float *row = M.emb_words + (size_t)tokens[i] * H;
-            memcpy(hidden + (size_t)i * H, row, sizeof(float) * H);
-        }
-        for (int i = 0; i < nn; ++i) {
-            int pidx = i < 512 ? i : 511;
-            const float *prow = M.emb_pos + (size_t)pidx * H;
-            const float *trow = M.emb_ttype;
-            float *out = hidden + (size_t)i * H;
-            for (int j = 0; j < H; ++j) out[j] = out[j] + prow[j] + trow[j];
-        }
-        ln_bias(hidden, M.emb_ln_w, M.emb_ln_b, nn, H, c->eps);
-        for (int l = 0; l < L; ++l) {
-            mm(hidden, M.q_w[l], M.q_b[l], nn, H, H, q);
-            mm(hidden, M.k_w[l], M.k_b[l], nn, H, H, k);
-            mm(hidden, M.v_w[l], M.v_b[l], nn, H, H, v);
-            for (int h = 0; h < NH; ++h) {
-                float *sc = scores + (size_t)h * nn * nn;
-                for (int i = 0; i < nn; ++i) {
-                    const float *qi = q + (size_t)i * H + h * HD;
-                    float *si = sc + (size_t)i * nn;
-                    double mx = -1e30;
-                    for (int j = 0; j < nn; ++j) {
-                        const float *kj = k + (size_t)j * H + h * HD;
-                        double d = 0.0;
-                        for (int d0 = 0; d0 < HD; ++d0) d += (double)qi[d0] * (double)kj[d0];
-                        d *= 0.125;
-                        si[j] = (float)d;
-                        if (d > mx) mx = d;
-                    }
-                    double sm = 0.0;
-                    for (int j = 0; j < nn; ++j) { double e = exp((double)si[j] - mx); si[j] = (float)e; sm += e; }
-                    float inv = (float)(1.0 / sm);
-                    for (int j = 0; j < nn; ++j) si[j] *= inv;
-                }
-                for (int i = 0; i < nn; ++i) {
-                    float *ci = ctx + (size_t)h * nn * HD + (size_t)i * HD;
-                    for (int d0 = 0; d0 < HD; ++d0) ci[d0] = 0.0f;
-                    for (int j = 0; j < nn; ++j) {
-                        double w = (double)scores[(size_t)h * nn * nn + (size_t)i * nn + j];
-                        const float *vj = v + (size_t)j * H + h * HD;
-                        for (int d0 = 0; d0 < HD; ++d0) ci[d0] += (float)(w * (double)vj[d0]);
-                    }
-                }
-                for (int i = 0; i < nn; ++i)
-                    memcpy(tmp + (size_t)i * H + h * HD,
-                           ctx + (size_t)h * nn * HD + (size_t)i * HD,
-                           sizeof(float) * HD);
-            }
-            mm(tmp, M.attn_o_w[l], M.attn_o_b[l], nn, H, H, buf2);
-            add_res(buf2, hidden, nn * H);
-            ln_bias(buf2, M.attn_ln_w[l], M.attn_ln_b[l], nn, H, c->eps);
-            mm(buf2, M.ffn1_w[l], M.ffn1_b[l], nn, H, MID, inter);
-            for (int i = 0; i < nn * MID; ++i) inter[i] = gelu_erf(inter[i]);
-            mm(inter, M.ffn2_w[l], M.ffn2_b[l], nn, MID, H, hidden);
-            add_res(hidden, buf2, nn * H);
-            ln_bias(hidden, M.ffn_ln_w[l], M.ffn_ln_b[l], nn, H, c->eps);
-        }
-        const float *cls_vec = hidden;
-        float mal_logit = M.mal_b[0];
-        for (int kdx = 0; kdx < H; ++kdx) mal_logit += cls_vec[kdx] * M.mal_w[kdx];
-        float prob = 1.0f / (1.0f + expf(-(mal_logit / (float)MALT)));
-        /* argmax interest labels (multi-label heads; thresholds not applied here) */
-        float best_t = -1e30f; int bt = -1;
-        for (int k = 0; k < c->ntact; k++){
-            float s = M.tact_b[k];
-            const float *row = M.tact_w + (size_t)k * H;
-            for (int d = 0; d < H; ++d) s += cls_vec[d] * row[d];
-            if (s > best_t){ best_t = s; bt = k; }
-        }
-        float best_e = -1e30f; int be = -1;
-        for (int k = 0; k < c->ntech; k++){
-            float s = M.tech_b[k];
-            const float *row = M.tech_w + (size_t)k * H;
-            for (int d = 0; d < H; ++d) s += cls_vec[d] * row[d];
-            if (s > best_e){ best_e = s; be = k; }
-        }
-        char cat[256]; cat[0] = 0;
-        int rule_hit = prefix_intent_alert_c(lb, cat, sizeof cat);
-        int decis = (prob >= TH) || rule_hit;
+        int decis = (o.prob >= g_th) || o.rule_hit;
         printf("%d\t%.9g\t%.9g\t%d\t%d\t%s\t%s\t%s\n",
-               line, mal_logit, prob, decis, rule_hit,
-               cat[0] ? cat : "-",
-               (decis && bt >= 0) ? TACT_LABELS[bt] : "-",
-               (decis && be >= 0) ? TECH_LABELS[be] : "-");
-        if (rule_hit) fprintf(stderr, "line %d intent-layer force-alert [%s]\n", line, cat);
+               line, o.mal_logit, o.prob, decis, o.rule_hit,
+               o.intent[0] ? o.intent : "-",
+               (decis && o.top_tact >= 0) ? TACT_LABELS[o.top_tact] : "-",
+               (decis && o.top_tech >= 0) ? TECH_LABELS[o.top_tech] : "-");
+        if (o.rule_hit) fprintf(stderr, "line %d intent-layer force-alert [%s]\n", line, o.intent);
     }
     clock_gettime(CLOCK_MONOTONIC, &t1);
     double secs = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
@@ -522,4 +626,70 @@ int main(int argc, char **argv) {
     fprintf(stderr, "lines=%d seconds=%.3f VmHWM_MiB=%.1f\n", line, secs, vmhwm/1024.0);
     fclose(in); free(lb);
     return 0;
+}
+
+static void usage(const char *argv0) {
+    fprintf(stderr,
+            "usage: %s input_text.txt [threshold]\n"
+            "       %s serve [--bind 127.0.0.1:8080] [--max-body BYTES] [--timeout SEC]\n",
+            argv0, argv0);
+}
+
+int main(int argc, char **argv) {
+    if (argc >= 2 && strcmp(argv[1], "serve") == 0) {
+        const char *bind = "127.0.0.1:8080";
+        size_t max_body = 1048576;
+        int timeout = 5;
+        for (int i = 2; i < argc; i++) {
+            const char *arg = argv[i];
+            if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
+                usage(argv[0]);
+                return 0;
+            } else if (strcmp(arg, "--bind") == 0 && i + 1 < argc) {
+                bind = argv[++i];
+            } else if (strncmp(arg, "--bind=", 7) == 0) {
+                bind = arg + 7;
+            } else if (strcmp(arg, "--max-body") == 0 && i + 1 < argc) {
+                char *end = NULL;
+                unsigned long long v = strtoull(argv[++i], &end, 10);
+                if (!end || *end || v < 4096 || v > 67108864) {
+                    fprintf(stderr, "serve: --max-body must be between 4096 and 67108864 bytes\n");
+                    return 2;
+                }
+                max_body = (size_t)v;
+            } else if (strncmp(arg, "--max-body=", 11) == 0) {
+                char *end = NULL;
+                unsigned long long v = strtoull(arg + 11, &end, 10);
+                if (!end || *end || v < 4096 || v > 67108864) {
+                    fprintf(stderr, "serve: --max-body must be between 4096 and 67108864 bytes\n");
+                    return 2;
+                }
+                max_body = (size_t)v;
+            } else if (strcmp(arg, "--timeout") == 0 && i + 1 < argc) {
+                char *end = NULL;
+                long v = strtol(argv[++i], &end, 10);
+                if (!end || *end || v < 1 || v > 300) {
+                    fprintf(stderr, "serve: --timeout must be between 1 and 300 seconds\n");
+                    return 2;
+                }
+                timeout = (int)v;
+            } else if (strncmp(arg, "--timeout=", 10) == 0) {
+                char *end = NULL;
+                long v = strtol(arg + 10, &end, 10);
+                if (!end || *end || v < 1 || v > 300) {
+                    fprintf(stderr, "serve: --timeout must be between 1 and 300 seconds\n");
+                    return 2;
+                }
+                timeout = (int)v;
+            } else {
+                fprintf(stderr, "serve: unknown option '%s'\n", arg);
+                usage(argv[0]);
+                return 2;
+            }
+        }
+        return cmdrisk_serve(bind, max_body, timeout);
+    }
+
+    if (argc < 2) { usage(argv[0]); return 1; }
+    return run_batch(argv[1], argc > 2 ? atof(argv[2]) : -1.0);
 }

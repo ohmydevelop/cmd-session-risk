@@ -13,8 +13,10 @@ jobs:
           lfs: false
       - name: Build single binary
         run: make -f Makefile.release all
-      - name: Smoke test
+      - name: Smoke test (batch CLI parity)
         run: make -f Makefile.release smoke
+      - name: Smoke test (HTTP daemon)
+        run: make -f Makefile.release serve-smoke
       - name: Export binary
         uses: actions/upload-artifact@v4
         with:

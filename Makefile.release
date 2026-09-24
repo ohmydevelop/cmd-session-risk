@@ -1,8 +1,8 @@
-# cmd-risk single-binary build
+# cmd-risk single-binary build (batch CLI + HTTP daemon in one file).
 CC ?= cc
 CFLAGS ?= -O3 -march=x86-64-v2
 LDFLAGS ?= -lm
-.PHONY: all objects binary smoke clean_dir
+.PHONY: all objects binary smoke serve-smoke clean_dir
 
 all: build/cmdrisk
 objects: build/model_f32.o build/vocab.o build/calibration.o build/model_config.o
@@ -23,9 +23,11 @@ build/model_config.o: ci_assets/model_config.json
 	mkdir -p build
 	ld -r -b binary ci_assets/model_config.json -o build/model_config.o
 
-build/cmdrisk: tools/cmdrisk_single.c build/model_f32.o build/vocab.o build/calibration.o build/model_config.o
+build/cmdrisk: tools/cmdrisk_single.c tools/cmdrisk_http.c tools/cmdrisk_infer.h build/model_f32.o build/vocab.o build/calibration.o build/model_config.o
 	mkdir -p build
-	$(CC) $(CFLAGS) tools/cmdrisk_single.c build/model_f32.o build/vocab.o build/calibration.o build/model_config.o $(LDFLAGS) -o build/cmdrisk
+	$(CC) $(CFLAGS) tools/cmdrisk_single.c tools/cmdrisk_http.c \
+	  build/model_f32.o build/vocab.o build/calibration.o build/model_config.o \
+	  $(LDFLAGS) -o build/cmdrisk
 
 smoke: build/cmdrisk
 	./build/cmdrisk ci_assets/smoke_text.txt 0.00011 > build/smoke.out 2> build/smoke.err
@@ -39,3 +41,9 @@ smoke: build/cmdrisk
 	test "$$(wc -l < build/crit.out)" -eq 28
 	awk '$$4!=1{exit 1}' build/crit.out
 	awk '$$5!=1{exit 1}' build/crit.out
+
+serve-smoke: build/cmdrisk
+	sh scripts/serve_smoke.sh
+
+clean_dir:
+	rm -rf build

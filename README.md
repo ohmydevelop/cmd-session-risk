@@ -75,3 +75,71 @@ cmdrisk --help  # 见 usage 提示
 
 指标：单一进程 RSS 实测约 `29–37 MiB`；在 2026-09-23 的 258 个真实前缀 test sample 上，决策（`mal_logit / malicious_temperature` 后过阈值）与 Python 校准管道一致率：vs FP32 `258/258`、vs INT8（生产默认）`258/258`（其中 246 个告警前缀）。
 `ci_assets/regression_borderline.txt`（13 行近阈值回归样本，期望全部 decision=0）锁定 v1.1.0 的 temperature bug 不复现；`make -f Makefile.release smoke` 同时断言 8 条告警样本全为 decision=1。修复说明见 `reports/C_TEMP_FIX_v1.1.1_zh.md`。
+
+## Daemon / HTTP 服务（v1.5.0 新增）
+
+v1.5.0 起，同一个单一二进制内置一个**持续运行的 HTTP 打分守护进程**，沿用与
+批量 CLI 完全相同的 C 推理路径（概率**位级一致**，不作二次校准）：
+
+```bash
+# 前台运行（默认只监听回环地址，无鉴权）
+cmdrisk serve --bind 127.0.0.1:8080
+
+# 健康检查
+curl -sS http://127.0.0.1:8080/healthz
+# {"ok":true,"model":"v6","version":"v1.5.0","bind":"127.0.0.1:8080"}
+
+# 打分一次完整命令会话（逐前缀返回恶意概率 + 意图类 + MITRE 标签）
+curl -sS -X POST http://127.0.0.1:8080/v1/score \
+  -H 'Content-Type: application/json' \
+  --data '{"session_id":"s1","commands":["id","rm -rf /"]}'
+```
+
+`/v1/score` 请求：`session_id`（可选，缺省自动 `sess-<pid>-<seq>`）+
+`commands`（字符串，或 `{"cmd":"...","dt":0.5}` 对象数组）。响应为：
+
+```json
+{
+  "session_id": "s1",
+  "model_version": "v6",
+  "schema_version": "1.0",
+  "peak_probability": 0.995549321,
+  "alerted": true,
+  "answers": [
+    {"command_index":0, "malicious_probability":0.0001, "risk_score":0.0,
+     "attack_stage":"unknown", "intent_classes":"-", "tactic":"-",
+     "technique":"-", "alert":false},
+    {"command_index":1, "malicious_probability":0.995549321, "risk_score":0.995549321,
+     "attack_stage":"Impact", "intent_classes":"destructive_delete",
+     "tactic":"TA0040", "technique":"T1070", "alert":true}
+  ]
+}
+```
+
+- `alert = (malicious_probability >= threshold) || 意图层命中`；阈值/温度从内嵌
+  `calibration.json` 读取，与批量 CLI 同源。
+- 错误统一 `{"error":{"code":"...","message":"..."}}`：400 `invalid_json`/`invalid_request`、
+  404 `not_found`、405 `method_not_allowed`、408 `request_timeout`、413 `payload_too_large`、
+  500 `inference_error`。请求体上限 `--max-body`（默认 1 MiB），单会话命令上限 1024。
+- **默认无鉴权、仅监听 `127.0.0.1`**；`--bind` 到非回环地址会打印警告，生产跨机使用
+  请自建反向代理/TLS/认证。定位是**告警 + 人工复核，不自动阻断**。
+- 单线程串行处理，实测 3 命令会话约 88 ms/请求、常驻 `VmHWM` ≈ 31 MiB。
+
+### systemd 部署
+
+```bash
+sudo install -m 0755 build/cmdrisk /usr/local/bin/cmdrisk
+sudo cp deploy/cmdrisk.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cmdrisk
+curl -sS http://127.0.0.1:8080/healthz
+```
+
+### 集成测试
+
+```bash
+make -f Makefile.release all smoke serve-smoke
+```
+
+`serve-smoke` 自动覆盖：healthz 契约、恶意/良性打分、逐前缀 `answers`、400/404/405/413
+错误码、与批量 CLI 的概率位级一致性，以及常驻内存 < 60 MiB 上限。

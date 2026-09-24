@@ -1,0 +1,35 @@
+# cmd-session-risk HTTP scoring daemon (alert + human review only; it never
+# blocks commands).
+#
+# Install:
+#   sudo install -m 0755 build/cmdrisk /usr/local/bin/cmdrisk
+#   sudo cp deploy/cmdrisk.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cmdrisk
+#
+# The daemon binds 127.0.0.1 by default and has no authentication; keep the
+# non-loopback exposure off unless a reverse proxy / firewall handles auth.
+[Unit]
+Description=cmd-session-risk HTTP scoring daemon
+Documentation=https://github.com/ohmydevelop/cmd-session-risk
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cmdrisk serve --bind 127.0.0.1:8080 --max-body 1048576 --timeout 5
+Restart=on-failure
+RestartSec=2
+User=nobody
+Group=nogroup
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryMax=64M
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
