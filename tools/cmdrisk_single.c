@@ -163,6 +163,9 @@ static int vocab_count = 0;
 #define SID_DT_GT   30532
 #define SID_DT_UNK  30533
 
+static const char *TACT_LABELS[14] = {"TA0043","TA0042","TA0001","TA0002","TA0003","TA0004","TA0005","TA0006","TA0007","TA0008","TA0009","TA0011","TA0010","TA0040"};
+static const char *TECH_LABELS[12] = {"T1005","T1036","T1053","T1057","T1059","T1070","T1082","T1083","T1087","T1098","T1105","T1222"};
+
 static int load_vocab(const char*path) {
     FILE*f=fopen(path,"r"); if(!f){perror("vocab");return -1;}
     vocab_tokens=(char**)malloc(sizeof(char*)*MAX_VOCAB);
@@ -486,10 +489,30 @@ int main(int argc, char **argv) {
         float mal_logit = M.mal_b[0];
         for (int kdx = 0; kdx < H; ++kdx) mal_logit += cls_vec[kdx] * M.mal_w[kdx];
         float prob = 1.0f / (1.0f + expf(-(mal_logit / (float)MALT)));
-        int rule_hit = prefix_intent_alert(lb);
+        /* argmax interest labels (multi-label heads; thresholds not applied here) */
+        float best_t = -1e30f; int bt = -1;
+        for (int k = 0; k < c->ntact; k++){
+            float s = M.tact_b[k];
+            const float *row = M.tact_w + (size_t)k * H;
+            for (int d = 0; d < H; ++d) s += cls_vec[d] * row[d];
+            if (s > best_t){ best_t = s; bt = k; }
+        }
+        float best_e = -1e30f; int be = -1;
+        for (int k = 0; k < c->ntech; k++){
+            float s = M.tech_b[k];
+            const float *row = M.tech_w + (size_t)k * H;
+            for (int d = 0; d < H; ++d) s += cls_vec[d] * row[d];
+            if (s > best_e){ best_e = s; be = k; }
+        }
+        char cat[256]; cat[0] = 0;
+        int rule_hit = prefix_intent_alert_c(lb, cat, sizeof cat);
         int decis = (prob >= TH) || rule_hit;
-        printf("%d\t%.9g\t%.9g\t%d\t%d\n", line, mal_logit, prob, decis, rule_hit);
-        if (rule_hit) fprintf(stderr, "line %d intent-layer force-alert\n", line);
+        printf("%d\t%.9g\t%.9g\t%d\t%d\t%s\t%s\t%s\n",
+               line, mal_logit, prob, decis, rule_hit,
+               cat[0] ? cat : "-",
+               (decis && bt >= 0) ? TACT_LABELS[bt] : "-",
+               (decis && be >= 0) ? TECH_LABELS[be] : "-");
+        if (rule_hit) fprintf(stderr, "line %d intent-layer force-alert [%s]\n", line, cat);
     }
     clock_gettime(CLOCK_MONOTONIC, &t1);
     double secs = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;

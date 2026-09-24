@@ -45,8 +45,18 @@ static int has_sub(const char *hay, const char *needle){
     return 0;
 }
 
+static int intent_line_c(const char *line, char *cat, size_t cap);
+static void addcat(char *cat, size_t cap, const char *name){
+    if(!cat) return;
+    size_t have = cat[0] ? strlen(cat) : 0;
+    if(have){ if(have+1+strlen(name)+1 <= cap) snprintf(cat+have, cap-have, "+%s", name); }
+    else if(strlen(name)+1 <= cap) snprintf(cat, cap, "%s", name);
+}
+#define HIT(name) do { addcat(cat, cap, #name); } while(0)
+
+
 /* forward */
-static int intent_statement(const char *s, int depth);
+static int intent_statement(const char *s, int depth, char *cat, size_t cap);
 
 /* ------------------------------------------------------------------ */
 /* escape decoding: \xNN (hex), \NNN (octal, posix printf)             */
@@ -324,8 +334,7 @@ static int path_danger(const char *tok){
 /* ------------------------------------------------------------------ */
 /* per-pipeline intent predicates                                     */
 /* ------------------------------------------------------------------ */
-static int intent_pipeline(const char *stmt, int depth){
-    if(depth>3) return 0;
+static int intent_pipeline(const char *stmt, int depth, char *cat, size_t cap){
     /* ---- stage split on single '|' ---- */
     char st[1240];
     { size_t n=0; while(stmt[n] && n+1<sizeof(st)){ st[n]=stmt[n]; n++; } st[n]=0; }
@@ -346,8 +355,8 @@ static int intent_pipeline(const char *stmt, int depth){
          ||stage_first_word(stage[i],"ruby")||stage_first_word(stage[i],"php")
          ||stage_first_word(stage[i],"node")) ex=1;
     }
-    if(dl&&ex) return 1;
-    if((has_sub(stmt,"curl ")||has_sub(stmt,"wget ")) && has_sub(stmt,"<(") && ex) return 1;
+    if(dl&&ex){ HIT(download_exec); return 1; }
+    if((has_sub(stmt,"curl ")||has_sub(stmt,"wget ")) && has_sub(stmt,"<(") && ex){ HIT(download_exec); return 1; }
 
     /* base64 pipeline: decode what feeds `base64 -d` and analyze its intent */
     for(int i=0;i<ns;i++){
@@ -362,7 +371,7 @@ static int intent_pipeline(const char *stmt, int depth){
             }
             char dec[560];
             if(payload[0] && base64_decode(payload,dec,sizeof dec) && dec[0]){
-                if(intent_statement(dec, depth+1)) return 1;
+                if(intent_statement(dec, depth+1, cat, cap)) return 1;
             }
         }
     }
@@ -388,7 +397,7 @@ static int intent_pipeline(const char *stmt, int depth){
                     size_t n2=0; const char *z=arg; if(z[0]=='\''||z[0]=='"') z++;
                     while(z<e){ if(n2+1<sizeof(payload)) payload[n2++]=*z; z++; }
                     payload[n2]=0;
-                    if(intent_statement(payload, depth+1)) return 1;
+                    if(intent_statement(payload, depth+1, cat, cap)) return 1;
                 }
             }
         }
@@ -406,7 +415,7 @@ static int intent_pipeline(const char *stmt, int depth){
                 const char *b=p; while(*p&&*p!=' ') p++;
                 char tok[560]; size_t n=(size_t)(p-b); if(n>=sizeof(tok)) n=sizeof(tok)-1;
                 memcpy(tok,b,n); tok[n]=0;
-                if(path_danger(tok)) return 1;
+                if(path_danger(tok)){ HIT(destructive_delete); return 1; }
             }
         }
 
@@ -418,44 +427,43 @@ static int intent_pipeline(const char *stmt, int depth){
             const char *b=p; while(*p&&*p!=' ') p++;
             char tok[560]; size_t n=(size_t)(p-b); if(n>=sizeof(tok)) n=sizeof(tok)-1;
             memcpy(tok,b,n); tok[n]=0;
-            if(redir && device_path(tok)) return 1;
+            if(redir && device_path(tok)){ HIT(device_write); return 1; }
             redir = (!strcmp(tok,">")||!strcmp(tok,">>")||!strcmp(tok,"1>")||!strcmp(tok,"2>")||!strcmp(tok,"&>"));
-            if(chr_lc(tok[0])=='o' && chr_lc(tok[1])=='f' && tok[2]=='=' && device_path(tok+3)) return 1;
-            if(token_is_in(s,"tee") && device_path(tok) && tok[0]=='/') return 1;
+            if(chr_lc(tok[0])=='o' && chr_lc(tok[1])=='f' && tok[2]=='=' && device_path(tok+3)){ HIT(device_write); return 1; }
+            if(token_is_in(s,"tee") && device_path(tok) && tok[0]=='/'){ HIT(device_write); return 1; }
         }
 
         /* filesystem creation / wipe on raw device */
         if((token_is_in(s,"mkfs")||has_sub(s,"mkfs")||token_is_in(s,"mke2fs")
            ||token_is_in(s,"wipefs")||token_is_in(s,"fdisk")||token_is_in(s,"parted")
            ||(token_is_in(s,"shred")&&has_sub(s,"/dev/"))||has_sub(s,"debugfs -w"))
-           && has_sub(s,"/dev/")) return 1;
+           && has_sub(s,"/dev/")){ HIT(device_wipe); return 1; }
 
         /* uid-0 backdoor */
-        if((token_is_in(s,"useradd")||token_is_in(s,"usermod")) && has_sub(s,"-u 0")) return 1;
+        if((token_is_in(s,"useradd")||token_is_in(s,"usermod")) && has_sub(s,"-u 0")){ HIT(uid0_backdoor); return 1; }
         /* kernel crash triggers */
-        if(has_sub(s,"/proc/sysrq-trigger")||has_sub(s,"sys.kernel.panic")) return 1;
+        if(has_sub(s,"/proc/sysrq-trigger")||has_sub(s,"sys.kernel.panic")){ HIT(kernel_panic); return 1; }
         /* kill pid1 / all */
-        if(has_sub(s,"kill -9 1")||has_sub(s,"kill -9 -1")) return 1;
+        if(has_sub(s,"kill -9 1")||has_sub(s,"kill -9 -1")){ HIT(mass_kill); return 1; }
         /* blanket perms on system path */
         if(has_sub(s,"chmod") && (token_is_in(s,"-r")||token_is_in(s,"-R"))
-           && (has_sub(s,"000 /")||has_sub(s,"777 /"))) return 1;
-        if(has_sub(s,"--no-preserve-root")) return 1;
+           && (has_sub(s,"000 /")||has_sub(s,"777 /"))){ HIT(blanket_perms); return 1; }
+        if(has_sub(s,"--no-preserve-root")){ HIT(destructive_delete); return 1; }
         /* fork bombs */
-        if(has_sub(s,"(){ :|:& };:")||has_sub(s,":(){ :|:&};:")) return 1;
+        if(has_sub(s,"(){ :|:& };:")||has_sub(s,":(){ :|:&};:")){ HIT(fork_bomb); return 1; }
         /* reverse / bind shells */
-        if(has_sub(s,"/dev/tcp/")||has_sub(s,"/dev/udp/")) return 1;
+        if(has_sub(s,"/dev/tcp/")||has_sub(s,"/dev/udp/")){ HIT(reverse_shell); return 1; }
         if((has_sub(s,"nc -e ")||has_sub(s,"ncat -e ")||has_sub(s,"nc -c ")||has_sub(s,"ncat --exec"))
-           && has_sub(s,"/bin/sh")) return 1;
-        if(has_sub(s,"socat") && has_sub(s,"exec:")) return 1;
-        if(has_sub(s,"bash -i >&")||has_sub(s,"bash -i &>")) return 1;
+           && has_sub(s,"/bin/sh")){ HIT(reverse_shell); return 1; }
+        if(has_sub(s,"socat") && has_sub(s,"exec:")){ HIT(reverse_shell); return 1; }
+        if(has_sub(s,"bash -i >&")||has_sub(s,"bash -i &>")){ HIT(reverse_shell); return 1; }
     }
     return 0;
 }
 
-static int intent_statement(const char *s, int depth){
-    if(depth>3) return 0;
+static int intent_statement(const char *s, int depth, char *cat, size_t cap){
     /* fork-bomb signatures span ';', so test the whole statement first */
-    if((has_sub(s,"(){") && has_sub(s,"|:&")) ) return 1;
+    if((has_sub(s,"(){") && has_sub(s,"|:&")) ){ HIT(fork_bomb); return 1; }
     char st[1200];
     size_t j=0;
     /* split on ; && || and newlines; analyze each segment as a pipeline */
@@ -463,7 +471,7 @@ static int intent_statement(const char *s, int depth){
     while(*p && j+1<sizeof(st)){
         if(*p==';' || (*p=='&' && p[1]=='&') || (*p=='|' && p[1]=='|') || *p=='\n'){
             st[j]=0;
-            if(j && intent_pipeline(st, depth)) return 1;
+            if(j && intent_pipeline(st, depth, cat, cap)) return 1;
             j=0;
             if(*p==';'||*p=='\n') p++;
             else p+=2;
@@ -472,12 +480,22 @@ static int intent_statement(const char *s, int depth){
         st[j++]=*p++;
     }
     st[j]=0;
-    if(j && intent_pipeline(st, depth)) return 1;
+    if(j && intent_pipeline(st, depth, cat, cap)) return 1;
     return 0;
 }
 
+/* category recorder for the intent layer (alert-only semantics untouched) */
+static int intent_cmd_c(const char *cmd, char *cat, size_t cap);
+
 /* entry: whole prefix line (\x1f-separated commands) */
 static int prefix_intent_alert(const char *line){
+    return intent_line_c(line, NULL, 0);
+}
+
+static int prefix_intent_alert_c(const char *line, char *cat, size_t cap){
+    return intent_line_c(line, cat, cap);
+}
+static int intent_line_c(const char *line, char *cat, size_t cap){
     const char *p=line;
     while(*p){
         const char *start=p;
@@ -488,10 +506,14 @@ static int prefix_intent_alert(const char *line){
         cbuf[cn]=0;
         char db[1200];
         deobfuscate(cbuf, db, sizeof db);
-        if(intent_statement(db, 0)) return 1;
+        if(intent_cmd_c(db, cat, cap)) return 1;
         if(*p) p++;
     }
     return 0;
+}
+
+static int intent_cmd_c(const char *cmd, char *cat, size_t cap){
+    return intent_statement(cmd, 0, cat, cap);
 }
 
 #endif

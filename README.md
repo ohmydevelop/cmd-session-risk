@@ -16,19 +16,19 @@ for the fallback GPU entry points, and `src/cmdrisk/` for the package.
 
 ## Install（单一二进制）——生产使用
 
-v1.4.1 的 `cmdrisk` 是**单一可执行文件**：TH/T 与模型架构常量不再写死在代码里，运行时从内嵌 `calibration.json` / `model_config.json` 读取（架构不匹配立即报错退出）；仅保留协议常量与意图层语义谓词（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
+v1.4.2 的 `cmdrisk` 是**单一可执行文件**：TH/T 与模型架构常量运行时从内嵌 `calibration.json` / `model_config.json` 读取；输出新增**意图类别 + MITRE 标签**（tail：意图层类别名 / tactic argmax / technique argmax）（v1.1.1 修温度缩放；v1.1.2 子串守卫；v1.3.0 升级为 shell 语义意图层）：模型（FP32）和 BERT 词表已在编译期嵌入，无需安装 Python、无需额外模型目录。
 
 ```bash
 # 1) 从 GitHub Release 下载到 ~/.local/bin
 mkdir -p ~/.local/bin
-gh release download v1.4.1 \
+gh release download v1.4.2 \
   --repo ohmydevelop/cmd-session-risk \
   --pattern cmdrisk \
   --output ~/.local/bin/cmdrisk
 chmod +x ~/.local/bin/cmdrisk
 export PATH="$HOME/.local/bin:$PATH"
 
-# 2) 校验完整性（expected e9f8cc18d376d7084184bfcdd3a4d8c5f06374901a3ef2edd40952a0f16be863）
+# 2) 校验完整性（expected e8a54eee56c84e31c39f81a82701165119c667493dc6322eb495269942937cda）
 sha256sum ~/.local/bin/cmdrisk
 
 # 3) 运行：每行一个命令前缀；命令之间用 0x1f 分隔；每条命令为 <cmd><TAB><dt>
@@ -42,7 +42,9 @@ cmdrisk ci_assets/smoke_text.txt 0.00011
 2	9.6828537	0.999994755	1	0
 ```
 
-字段：`行号 <TAB> mal_logit <TAB> mal_prob <TAB> decision(1=告警) <TAB> rule_hit(1=静态高危模式命中)`。
+字段：`行号 <TAB> mal_logit <TAB> mal_prob <TAB> decision(1=告警) <TAB> rule_hit(1=意图层命中) <TAB> intent_classes <TAB> top_tactic <TAB> top_technique`。
+- `intent_classes`：意图层命中的类别（`destructive_delete/device_write/device_wipe/kernel_panic/uid0_backdoor/mass_kill/blanket_perms/download_exec/reverse_shell/fork_bomb`，可 `+` 连接）
+- `top_tactic / top_technique`：模型多标签头的 argmax（仅 decision=1 时显示；TA0003 等 14 类 / T1059 等 12 类）
 `decision = (mal_prob >= threshold) || rule_hit`；`rule_hit=1` 时 stderr 会打印 `intent-layer force-alert`。
 意图层（`tools/cmdrisk_intent.h`，v1.3.0）是一个确定性的 mini shell 语义分析器：
 拆分语句/管道、解 `sh -c` 包装、求值 `$(echo/printf)`、解码 `\xNN`/八进制/ANSI-C 引号/
