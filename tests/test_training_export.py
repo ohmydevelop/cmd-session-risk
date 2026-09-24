@@ -155,7 +155,14 @@ def test_export_stamps_model_version_into_the_artifact(tmp_path: Path) -> None:
     checkpoint, calibration = _build_checkpoint(tmp_path)
     run_dir = tmp_path / "cmd-session-risk-l4-20260919-0020"
     artifact = run_dir / "onnx"
-    manifest = export_onnx(checkpoint=checkpoint, output_dir=artifact, calibration_path=calibration)
+    manifest = export_onnx(
+        checkpoint=checkpoint,
+        output_dir=artifact,
+        calibration_path=calibration,
+        # tiny synthetic model: INT8 drift varies across CI CPU/ORT builds;
+        # production models are validated against 0.05 separately.
+        int8_parity_atol=0.2,
+    )
 
     # Defaults to the parent directory name, which is the training run id.
     runtime_config = json.loads((artifact / "runtime_config.json").read_text(encoding="utf-8"))
@@ -356,6 +363,7 @@ def test_update_export_manifest_latency_enables_promotion(tmp_path: Path) -> Non
         output_dir=artifact,
         calibration_path=calibration,
         metrics_path=metrics_path,
+        int8_parity_atol=0.2,  # see comment in the test above
     )
 
     latency_path = tmp_path / "latency.json"
