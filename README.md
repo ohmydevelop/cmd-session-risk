@@ -103,17 +103,18 @@ curl -sS -X POST http://127.0.0.1:8080/v1/score \
   "session_id": "s1",
   "model_version": "v6",
   "schema_version": "1.0",
-  "peak_probability": 0.995549321,
+  "peak_probability": 0.00191341515,
   "alerted": true,
   "answers": [
-    {"command_index":0, "malicious_probability":0.0001, "risk_score":0.0,
-     "attack_stage":"unknown", "intent_classes":"-", "tactic":"-",
-     "technique":"-", "alert":false},
-    {"command_index":1, "malicious_probability":0.995549321, "risk_score":0.995549321,
+    {"command_index":0, "malicious_probability":0.000136836054, "risk_score":0.000136836054,
+     "attack_stage":"Command and Control", "intent_classes":"-", "tactic":"TA0011",
+     "technique":"T1070", "alert":true},
+    {"command_index":1, "malicious_probability":0.00191341515, "risk_score":0.00191341515,
      "attack_stage":"Impact", "intent_classes":"destructive_delete",
-     "tactic":"TA0040", "technique":"T1070", "alert":true}
+     "tactic":"TA0040", "technique":"T1036", "alert":true}
   ]
 }
+（示例值为 `["id","rm -rf /"]` 的实际输出；数值随会话内容变化，以服务器返回为准。）
 ```
 
 - `alert = (malicious_probability >= threshold) || 意图层命中`；阈值/温度从内嵌
